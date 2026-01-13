@@ -57,6 +57,7 @@ export default function TradePanel({
   const [tradeStatus, setTradeStatus] = useState<TradeStatus>('idle');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [tradeError, setTradeError] = useState<string | null>(null);
+  const [showFireEffect, setShowFireEffect] = useState(false);
 
   const { address, isConnected } = useAccount();
   const { connect, isPending: isConnecting } = useConnect();
@@ -133,7 +134,7 @@ export default function TradePanel({
     ? (isBaseNative ? 18 : (baseDecimals as number) || 18)
     : (isQuoteNative ? 18 : (quoteDecimals as number) || 6);
 
-  // Calculate available balance
+  // Calculate available balance for input token (pay/sell)
   const getAvailableBalance = () => {
     if (tradeType === 'buy') {
       if (isQuoteNative) {
@@ -148,8 +149,25 @@ export default function TradePanel({
     }
   };
 
+  // Calculate output token balance (receive)
+  const getOutputBalance = () => {
+    if (tradeType === 'buy') {
+      // Buying base token, show base balance
+      if (isBaseNative) {
+        return nativeBalance?.value ? parseFloat(formatUnits(nativeBalance.value, 18)) : 0;
+      }
+      return baseBalance ? parseFloat(formatUnits(baseBalance as bigint, (baseDecimals as number) || 18)) : 0;
+    } else {
+      // Selling base token, show quote balance
+      if (isQuoteNative) {
+        return nativeBalance?.value ? parseFloat(formatUnits(nativeBalance.value, 18)) : 0;
+      }
+      return quoteBalance ? parseFloat(formatUnits(quoteBalance as bigint, (quoteDecimals as number) || 6)) : 0;
+    }
+  };
+
   const availableBalance = getAvailableBalance();
-  const availableSymbol = tradeType === 'buy' ? quoteSymbol : baseSymbol;
+  const outputBalance = getOutputBalance();
 
   // Fetch quote when amount changes
   const fetchQuote = useCallback(async () => {
@@ -317,6 +335,10 @@ export default function TradePanel({
       setOrderId(newOrderId);
       setTradeStatus('success');
 
+      // Trigger fire effect animation
+      setShowFireEffect(true);
+      setTimeout(() => setShowFireEffect(false), 1500);
+
       // Reset form after success
       setTimeout(() => {
         setAmount('');
@@ -361,7 +383,90 @@ export default function TradePanel({
   const isTrading = tradeStatus === 'signing' || tradeStatus === 'submitting';
 
   return (
-    <div className="bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden">
+    <div className="bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden relative">
+      {/* Fire Effect Animation */}
+      {showFireEffect && (
+        <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+          {/* Central flash */}
+          <div className="absolute inset-0 bg-gradient-radial from-yellow-500/30 via-orange-500/20 to-transparent animate-pulse" />
+
+          {/* Fire sparks shooting outward */}
+          {[...Array(20)].map((_, i) => {
+            const angle = (i / 20) * 360;
+            const delay = Math.random() * 0.2;
+            const distance = 80 + Math.random() * 60;
+            return (
+              <div
+                key={i}
+                className="absolute left-1/2 top-1/2 w-2 h-2 rounded-full"
+                style={{
+                  background: `linear-gradient(45deg, ${i % 3 === 0 ? '#fbbf24' : i % 3 === 1 ? '#f97316' : '#ef4444'}, transparent)`,
+                  boxShadow: `0 0 6px ${i % 3 === 0 ? '#fbbf24' : i % 3 === 1 ? '#f97316' : '#ef4444'}`,
+                  animation: `fire-spark 0.8s ease-out forwards`,
+                  animationDelay: `${delay}s`,
+                  transform: `rotate(${angle}deg) translateY(-${distance}px)`,
+                }}
+              />
+            );
+          })}
+
+          {/* Muzzle flash effect */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="w-24 h-24 bg-gradient-radial from-white via-yellow-400 to-transparent rounded-full animate-muzzle-flash opacity-80" />
+          </div>
+
+          {/* Smoke rings */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="w-16 h-16 border-4 border-yellow-500/60 rounded-full animate-smoke-ring" />
+            <div className="absolute inset-0 w-16 h-16 border-4 border-orange-500/40 rounded-full animate-smoke-ring" style={{ animationDelay: '0.1s' }} />
+          </div>
+        </div>
+      )}
+
+      {/* Inline styles for fire animation */}
+      <style jsx>{`
+        @keyframes fire-spark {
+          0% {
+            opacity: 1;
+            transform: rotate(var(--angle, 0deg)) translateY(0) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: rotate(var(--angle, 0deg)) translateY(-120px) scale(0.3);
+          }
+        }
+        @keyframes muzzle-flash {
+          0% {
+            transform: scale(0.3);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.2);
+            opacity: 0.8;
+          }
+          100% {
+            transform: scale(1.5);
+            opacity: 0;
+          }
+        }
+        @keyframes smoke-ring {
+          0% {
+            transform: scale(0.5);
+            opacity: 0.8;
+          }
+          100% {
+            transform: scale(3);
+            opacity: 0;
+          }
+        }
+        .animate-muzzle-flash {
+          animation: muzzle-flash 0.4s ease-out forwards;
+        }
+        .animate-smoke-ring {
+          animation: smoke-ring 0.8s ease-out forwards;
+        }
+      `}</style>
+
       {/* Header: Swap label + refresh */}
       <div className="px-3 py-2 border-b border-[#30363d] flex items-center justify-between">
         <span className="text-sm font-medium">Swap</span>
@@ -434,32 +539,19 @@ export default function TradePanel({
           </span>
         </div>
 
-        {/* Available Balance */}
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-gray-400">Available</span>
-          <span className="text-white">
-            {isConnected ? (
-              <>
-                <span className={tradeType === 'buy' ? 'text-[#3fb950]' : 'text-[#f85149]'}>
-                  {formatBalance(availableBalance)}
-                </span>
-                {' '}{availableSymbol}
-              </>
-            ) : (
-              '--'
-            )}
-          </span>
-        </div>
-
         {/* Amount Input - Pay */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="text-xs text-gray-400">
               {tradeType === 'buy' ? `Pay` : `Sell`}
             </label>
-            <span className="text-xs text-gray-500">
-              {tradeType === 'buy' ? quoteSymbol : baseSymbol}
-            </span>
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-gray-500">Balance:</span>
+              <span className={tradeType === 'buy' ? 'text-[#3fb950]' : 'text-[#f85149]'}>
+                {isConnected ? formatBalance(availableBalance) : '--'}
+              </span>
+              <span className="text-gray-500">{tradeType === 'buy' ? quoteSymbol : baseSymbol}</span>
+            </div>
           </div>
           <input
             type="text"
@@ -506,9 +598,13 @@ export default function TradePanel({
         <div className="space-y-1">
           <div className="flex items-center justify-between">
             <label className="text-xs text-gray-400">Receive</label>
-            <span className="text-xs text-gray-500">
-              {tradeType === 'buy' ? baseSymbol : quoteSymbol}
-            </span>
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-gray-500">Balance:</span>
+              <span className="text-white">
+                {isConnected ? formatBalance(outputBalance) : '--'}
+              </span>
+              <span className="text-gray-500">{tradeType === 'buy' ? baseSymbol : quoteSymbol}</span>
+            </div>
           </div>
           <div className="relative">
             <input

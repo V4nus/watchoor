@@ -20,10 +20,6 @@ const Chart = dynamic(() => import('@/components/Chart'), {
   ),
 });
 
-const RealtimePrice = dynamic(() => import('@/components/RealtimePrice'), {
-  ssr: false,
-});
-
 const LiquidityDepth = dynamic(() => import('@/components/LiquidityDepth'), {
   ssr: false,
   loading: () => (
@@ -162,15 +158,8 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
             </div>
           </div>
 
-          {/* Center: Real-time price - hidden on very small screens */}
-          <div className="hidden sm:flex flex-1 justify-center">
-            <RealtimePrice
-              chainId={pool.chainId}
-              tokenAddress={pool.baseToken.address}
-              initialPrice={pool.priceUsd}
-              symbol={pool.baseToken.symbol}
-            />
-          </div>
+          {/* Center spacer for layout */}
+          <div className="hidden sm:flex flex-1" />
 
           {/* Right: 24h change + Wallet */}
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
@@ -217,12 +206,12 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
         </div>
       </div>
 
-      {/* Main content: Chart + Trade History + Order Book */}
-      <main className="flex-1 p-2 flex flex-col md:flex-row gap-2 overflow-auto">
+      {/* Main content: Chart | Swap | Order Book horizontal layout */}
+      <main className="flex-1 p-2 flex flex-col lg:flex-row gap-2 overflow-auto">
         {/* Left: Chart + Trade History stacked */}
         <div className="flex-1 flex flex-col gap-2 min-w-0">
-          {/* Chart - responsive height: smaller on mobile, larger on desktop */}
-          <div className="h-[300px] sm:h-[400px] md:h-[500px] bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden flex-shrink-0">
+          {/* Chart - takes most of the vertical space */}
+          <div className="h-[300px] sm:h-[350px] lg:flex-1 lg:min-h-[400px] bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden">
             <Chart
               chainId={pool.chainId}
               poolAddress={pool.poolAddress}
@@ -232,7 +221,7 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
           </div>
 
           {/* Trade History - below chart */}
-          <div className="h-[250px] sm:h-[300px] md:flex-1 md:min-h-[300px]">
+          <div className="h-[200px] sm:h-[250px] lg:h-[280px] flex-shrink-0">
             <TradeHistory
               chainId={pool.chainId}
               poolAddress={pool.poolAddress}
@@ -242,34 +231,31 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
           </div>
         </div>
 
-        {/* Right: Order Book + Trade Panel - sticky on desktop */}
-        <div className="flex-shrink-0 md:sticky md:top-0 md:self-start w-full sm:w-64 md:w-72 flex flex-col gap-2 md:h-[calc(100vh-140px)]">
-          {/* Order Book */}
-          <div className="h-[300px] sm:h-[400px] md:flex-1 md:min-h-0">
-            <LiquidityDepth
-              chainId={pool.chainId}
-              poolAddress={pool.poolAddress}
-              priceUsd={pool.priceUsd}
-              baseSymbol={pool.baseToken.symbol}
-              quoteSymbol={pool.quoteToken.symbol}
-              liquidityUsd={pool.liquidity}
-              liquidityBase={pool.liquidityBase}
-              liquidityQuote={pool.liquidityQuote}
-              baseTokenAddress={pool.baseToken.address}
-              quoteTokenAddress={pool.quoteToken.address}
-            />
-          </div>
+        {/* Middle: Swap Panel */}
+        <div className="flex-shrink-0 w-full sm:w-72 lg:w-64 xl:w-72">
+          <TradePanel
+            chainId={pool.chainId}
+            baseTokenAddress={pool.baseToken.address}
+            quoteTokenAddress={pool.quoteToken.address}
+            baseSymbol={pool.baseToken.symbol}
+            quoteSymbol={pool.quoteToken.symbol}
+          />
+        </div>
 
-          {/* Trade Panel */}
-          <div className="flex-shrink-0">
-            <TradePanel
-              chainId={pool.chainId}
-              baseTokenAddress={pool.baseToken.address}
-              quoteTokenAddress={pool.quoteToken.address}
-              baseSymbol={pool.baseToken.symbol}
-              quoteSymbol={pool.quoteToken.symbol}
-            />
-          </div>
+        {/* Right: Order Book */}
+        <div className="flex-shrink-0 w-full sm:w-72 lg:w-64 xl:w-72 h-[350px] sm:h-[400px] lg:h-auto lg:self-stretch">
+          <LiquidityDepth
+            chainId={pool.chainId}
+            poolAddress={pool.poolAddress}
+            priceUsd={pool.priceUsd}
+            baseSymbol={pool.baseToken.symbol}
+            quoteSymbol={pool.quoteToken.symbol}
+            liquidityUsd={pool.liquidity}
+            liquidityBase={pool.liquidityBase}
+            liquidityQuote={pool.liquidityQuote}
+            baseTokenAddress={pool.baseToken.address}
+            quoteTokenAddress={pool.quoteToken.address}
+          />
         </div>
       </main>
       </div>
