@@ -80,7 +80,8 @@ function rotateRpc(chainId: string): void {
   console.log(`Rotated RPC for ${chainId} to index ${rpcIndexes[chainId]}: ${urls[rpcIndexes[chainId]]}`);
 }
 
-const CHAINS: Record<string, typeof mainnet> = {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CHAINS: Record<string, any> = {
   ethereum: mainnet,
   base: base,
   bsc: bsc,
