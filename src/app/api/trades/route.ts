@@ -259,13 +259,9 @@ async function getV4Trades(
       const usdcAmount = Math.abs(Number(args.amount0)) / 1e6;
       const baseAmount = Math.abs(Number(args.amount1)) / 1e18;
 
-      // Calculate price from sqrtPriceX96
-      // price = (sqrtPriceX96 / 2^96)^2 * 10^(decimals0 - decimals1)
-      // For USDC(6)/TOKEN(18): price = (sqrtP / 2^96)^2 * 10^(6-18) = (sqrtP / 2^96)^2 * 10^-12
-      const sqrtP = Number(args.sqrtPriceX96);
-      const priceRaw = (sqrtP / 2 ** 96) ** 2;
-      // This gives USDC per TOKEN (what we want)
-      const price = priceRaw * 1e12;
+      // Calculate price directly from trade amounts (more reliable than sqrtPriceX96)
+      // Price = USDC amount / Token amount
+      const price = baseAmount > 0 ? usdcAmount / baseAmount : 0;
 
       const timestamp = blockTimestamps.get(log.blockNumber) || Math.floor(Date.now() / 1000);
 
