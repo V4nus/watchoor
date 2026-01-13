@@ -286,9 +286,9 @@ export default function TradePanel({
     setOrderId(null);
 
     try {
-      // Create order data
+      // Create market order data with proper appData (orderClass: "market")
       // CoW Protocol requires feeAmount to be 0 (fee is included in the sell amount)
-      const orderData = createOrderData({
+      const { order: orderData, fullAppData } = await createOrderData({
         sellToken: quote.sellToken,
         buyToken: quote.buyToken,
         sellAmount: quote.sellAmount,
@@ -297,6 +297,7 @@ export default function TradePanel({
         receiver: address,
         feeAmount: '0',
         kind: 'sell',
+        slippageBps: 50, // 0.5% slippage
       });
 
       // Get EIP-712 domain
@@ -330,13 +331,14 @@ export default function TradePanel({
 
       setTradeStatus('submitting');
 
-      // Submit the signed order
+      // Submit the signed market order
       const newOrderId = await submitOrder({
         chainId: targetChainId,
         order: orderData,
         signature,
         signingScheme: 'eip712',
         from: address,
+        fullAppData, // Include appData for market order classification
       });
 
       setOrderId(newOrderId);
@@ -402,86 +404,85 @@ export default function TradePanel({
 
   return (
     <div className="bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden relative">
-      {/* Fire Effect Animation */}
+      {/* Eye Logo Success Animation - Full screen flash */}
       {showFireEffect && (
-        <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
-          {/* Central flash */}
-          <div className="absolute inset-0 bg-gradient-radial from-yellow-500/30 via-orange-500/20 to-transparent animate-pulse" />
+        <div className="fixed inset-0 pointer-events-none z-[100] flex items-center justify-center animate-eye-flash">
+          {/* Dark overlay */}
+          <div className="absolute inset-0 bg-black/80" />
 
-          {/* Fire sparks shooting outward */}
-          {[...Array(20)].map((_, i) => {
-            const angle = (i / 20) * 360;
-            const delay = Math.random() * 0.2;
-            const distance = 80 + Math.random() * 60;
-            return (
-              <div
-                key={i}
-                className="absolute left-1/2 top-1/2 w-2 h-2 rounded-full"
-                style={{
-                  background: `linear-gradient(45deg, ${i % 3 === 0 ? '#fbbf24' : i % 3 === 1 ? '#f97316' : '#ef4444'}, transparent)`,
-                  boxShadow: `0 0 6px ${i % 3 === 0 ? '#fbbf24' : i % 3 === 1 ? '#f97316' : '#ef4444'}`,
-                  animation: `fire-spark 0.8s ease-out forwards`,
-                  animationDelay: `${delay}s`,
-                  transform: `rotate(${angle}deg) translateY(-${distance}px)`,
-                }}
-              />
-            );
-          })}
-
-          {/* Muzzle flash effect */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div className="w-24 h-24 bg-gradient-radial from-white via-yellow-400 to-transparent rounded-full animate-muzzle-flash opacity-80" />
-          </div>
-
-          {/* Smoke rings */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-            <div className="w-16 h-16 border-4 border-yellow-500/60 rounded-full animate-smoke-ring" />
-            <div className="absolute inset-0 w-16 h-16 border-4 border-orange-500/40 rounded-full animate-smoke-ring" style={{ animationDelay: '0.1s' }} />
+          {/* Glowing eye icon */}
+          <div className="relative animate-eye-appear">
+            <svg width="120" height="120" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-[0_0_30px_#3fb950]">
+              {/* Outer eye shape */}
+              <path d="M24 8C12 8 2 24 2 24C2 24 12 40 24 40C36 40 46 24 46 24C46 24 36 8 24 8Z" stroke="#3fb950" strokeWidth="2.5" fill="none" className="animate-eye-stroke"/>
+              {/* Iris */}
+              <circle cx="24" cy="24" r="10" stroke="#3fb950" strokeWidth="2" fill="none"/>
+              {/* Pupil with glow */}
+              <circle cx="24" cy="24" r="5" fill="#3fb950" className="animate-pulse"/>
+              {/* Light reflection */}
+              <circle cx="27" cy="21" r="2" fill="#0d1117"/>
+            </svg>
           </div>
         </div>
       )}
 
-      {/* Inline styles for fire animation */}
+      {/* Inline styles for eye animation */}
       <style jsx>{`
-        @keyframes fire-spark {
+        @keyframes eye-flash {
           0% {
+            opacity: 0;
+          }
+          10% {
             opacity: 1;
-            transform: rotate(var(--angle, 0deg)) translateY(0) scale(1);
+          }
+          80% {
+            opacity: 1;
           }
           100% {
             opacity: 0;
-            transform: rotate(var(--angle, 0deg)) translateY(-120px) scale(0.3);
           }
         }
-        @keyframes muzzle-flash {
-          0% {
-            transform: scale(0.3);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.2);
-            opacity: 0.8;
-          }
-          100% {
-            transform: scale(1.5);
-            opacity: 0;
-          }
-        }
-        @keyframes smoke-ring {
+        @keyframes eye-appear {
           0% {
             transform: scale(0.5);
-            opacity: 0.8;
+            opacity: 0;
+          }
+          20% {
+            transform: scale(1.1);
+            opacity: 1;
+          }
+          30% {
+            transform: scale(1);
+          }
+          70% {
+            transform: scale(1);
+            opacity: 1;
           }
           100% {
-            transform: scale(3);
+            transform: scale(1.2);
             opacity: 0;
           }
         }
-        .animate-muzzle-flash {
-          animation: muzzle-flash 0.4s ease-out forwards;
+        @keyframes eye-stroke {
+          0% {
+            stroke-dasharray: 200;
+            stroke-dashoffset: 200;
+          }
+          50% {
+            stroke-dashoffset: 0;
+          }
+          100% {
+            stroke-dashoffset: 0;
+          }
         }
-        .animate-smoke-ring {
-          animation: smoke-ring 0.8s ease-out forwards;
+        .animate-eye-flash {
+          animation: eye-flash 1.5s ease-in-out forwards;
+        }
+        .animate-eye-appear {
+          animation: eye-appear 1.5s ease-out forwards;
+        }
+        .animate-eye-stroke {
+          animation: eye-stroke 0.8s ease-out forwards;
         }
       `}</style>
 

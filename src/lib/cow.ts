@@ -1,6 +1,7 @@
 'use client';
 
 import { OrderBookApi, OrderQuoteRequest, OrderQuoteSideKindSell, OrderQuoteSideKindBuy, SigningScheme, OrderKind, SellTokenSource, BuyTokenDestination } from '@cowprotocol/cow-sdk';
+import { buildAppData } from '@cowprotocol/sdk-trading';
 
 // CoW Protocol supported chains
 export const COW_SUPPORTED_CHAINS: Record<number, string> = {
@@ -221,11 +222,33 @@ export const COW_ORDER_TYPES = {
   ],
 } as const;
 
-// Default app data hash (empty app data)
+// Default app data hash (empty app data - will be replaced with market order appData)
 export const DEFAULT_APP_DATA = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
-// Create order data for signing
-export function createOrderData(params: {
+// Build market order appData with orderClass: "market"
+export async function buildMarketOrderAppData(slippageBps: number = 50): Promise<{ appDataHash: string; fullAppData: string }> {
+  try {
+    const appDataInfo = await buildAppData({
+      slippageBps,
+      appCode: '0xArgus',
+      orderClass: 'market',
+    });
+    return {
+      appDataHash: appDataInfo.appDataKeccak256,
+      fullAppData: appDataInfo.fullAppData,
+    };
+  } catch (error) {
+    console.error('Failed to build appData:', error);
+    // Fallback to default if buildAppData fails
+    return {
+      appDataHash: DEFAULT_APP_DATA,
+      fullAppData: '{}',
+    };
+  }
+}
+
+// Create order data for signing (market order)
+export async function createOrderData(params: {
   sellToken: string;
   buyToken: string;
   sellAmount: string;
@@ -234,20 +257,27 @@ export function createOrderData(params: {
   receiver: string;
   feeAmount: string;
   kind: 'sell' | 'buy';
-}): CowOrder {
+  slippageBps?: number;
+}): Promise<{ order: CowOrder; fullAppData: string }> {
+  // Build appData with market orderClass
+  const { appDataHash, fullAppData } = await buildMarketOrderAppData(params.slippageBps || 50);
+
   return {
-    sellToken: params.sellToken,
-    buyToken: params.buyToken,
-    sellAmount: params.sellAmount,
-    buyAmount: params.buyAmount,
-    validTo: params.validTo,
-    appData: DEFAULT_APP_DATA,
-    feeAmount: params.feeAmount,
-    kind: params.kind,
-    partiallyFillable: false,
-    receiver: params.receiver,
-    sellTokenBalance: 'erc20',
-    buyTokenBalance: 'erc20',
+    order: {
+      sellToken: params.sellToken,
+      buyToken: params.buyToken,
+      sellAmount: params.sellAmount,
+      buyAmount: params.buyAmount,
+      validTo: params.validTo,
+      appData: appDataHash,
+      feeAmount: params.feeAmount,
+      kind: params.kind,
+      partiallyFillable: false,
+      receiver: params.receiver,
+      sellTokenBalance: 'erc20',
+      buyTokenBalance: 'erc20',
+    },
+    fullAppData,
   };
 }
 
@@ -268,8 +298,9 @@ export async function submitOrder(params: {
   signature: string;
   signingScheme: 'eip712' | 'ethsign' | 'presign';
   from: string;
+  fullAppData?: string;
 }): Promise<string> {
-  const { chainId, order, signature, signingScheme, from } = params;
+  const { chainId, order, signature, signingScheme, from, fullAppData } = params;
 
   const orderBookApi = getOrderBookApi(chainId);
 
@@ -277,19 +308,31 @@ export async function submitOrder(params: {
   // The fee is taken from the sell amount instead
   const feeAmount = '0';
 
-  console.log('Submitting order to CoW Protocol:', {
+  console.log('Submitting market order to CoW Protocol:', {
     chainId,
     sellToken: order.sellToken,
     buyToken: order.buyToken,
     sellAmount: order.sellAmount,
     buyAmount: order.buyAmount,
     validTo: order.validTo,
+    appData: order.appData,
     feeAmount,
     from,
     signatureLength: signature.length,
   });
 
   try {
+    // Upload appData first if we have full app data (required for market orders)
+    if (fullAppData && order.appData !== DEFAULT_APP_DATA) {
+      try {
+        await orderBookApi.uploadAppData(order.appData as `0x${string}`, fullAppData);
+        console.log('AppData uploaded successfully');
+      } catch (uploadError) {
+        // AppData might already exist, continue anyway
+        console.log('AppData upload skipped (may already exist):', uploadError);
+      }
+    }
+
     const orderId = await orderBookApi.sendOrder({
       sellToken: order.sellToken,
       buyToken: order.buyToken,
@@ -310,7 +353,7 @@ export async function submitOrder(params: {
       buyTokenBalance: BuyTokenDestination.ERC20,
     });
 
-    console.log('Order submitted successfully:', orderId);
+    console.log('Market order submitted successfully:', orderId);
     return orderId;
   } catch (error: unknown) {
     console.error('Failed to submit order:', error);
