@@ -662,10 +662,27 @@ export default function TradePanel({
                 1 {tradeType === 'buy' ? baseSymbol : quoteSymbol} = {formatNumber(amountNum / estimatedOutput)} {tradeType === 'buy' ? quoteSymbol : baseSymbol}
               </span>
             </div>
-            <div className="flex justify-between">
-              <span>Network Fee</span>
-              <span className="text-[#3fb950]">Free (CoW)</span>
-            </div>
+            {/* Show actual sell amount vs input if there's a difference (CoW fee) */}
+            {(() => {
+              const actualSellAmount = parseFloat(formatUnits(BigInt(quote.sellAmount), inputDecimals));
+              const feeAmount = amountNum - actualSellAmount;
+              if (feeAmount > 0.0001) {
+                return (
+                  <div className="flex justify-between">
+                    <span>Protocol Fee</span>
+                    <span className="text-yellow-500">
+                      ~{feeAmount.toFixed(6)} {tradeType === 'buy' ? quoteSymbol : baseSymbol}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <div className="flex justify-between">
+                  <span>Network Fee</span>
+                  <span className="text-[#3fb950]">Free (CoW)</span>
+                </div>
+              );
+            })()}
           </div>
         )}
 
