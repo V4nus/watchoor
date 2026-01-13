@@ -1,9 +1,11 @@
 'use client';
 
 import SearchBox from '@/components/SearchBox';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import dynamic from 'next/dynamic';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useTranslations } from '@/lib/i18n';
 
 const ParticleField = dynamic(() => import('@/components/ParticleField'), {
   ssr: false,
@@ -14,6 +16,7 @@ const ParticleField = dynamic(() => import('@/components/ParticleField'), {
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
+  const t = useTranslations();
 
   useEffect(() => {
     setMounted(true);
@@ -48,6 +51,7 @@ export default function Home() {
             >
               Twitter
             </a>
+            <LanguageSwitcher />
           </nav>
         </header>
 
@@ -59,23 +63,22 @@ export default function Home() {
             <div className="mb-6">
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#3fb950]/30 bg-[#3fb950]/5 text-[#3fb950] text-sm">
                 <span className="w-2 h-2 rounded-full bg-[#3fb950] animate-pulse" />
-                Live On-Chain Analytics
+                {t.home.tagline}
               </span>
             </div>
 
             {/* Gradient Title */}
             <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold mb-6 leading-tight tracking-tight">
-              <span className="text-white">Decode</span>
+              <span className="text-white">{t.home.title1}</span>
               <br />
               <span className="bg-gradient-to-r from-[#3fb950] via-[#58d68d] to-[#3fb950] bg-clip-text text-transparent">
-                Order Flow
+                {t.home.title2}
               </span>
             </h1>
 
             {/* Subtitle */}
             <p className="text-gray-400 text-lg sm:text-xl mb-10 max-w-2xl mx-auto leading-relaxed">
-              Transform any AMM liquidity into real-time order book depth.
-              See hidden support and resistance across all DEX pools.
+              {t.home.subtitle}
             </p>
 
             {/* Search Box */}
@@ -114,10 +117,10 @@ export default function Home() {
         <footer className="py-8 px-6 border-t border-white/5">
           <div className="max-w-4xl mx-auto">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 text-center">
-              <StatItem value="6+" label="Chains" />
-              <StatItem value="12K+" label="Pools" />
-              <StatItem value="$2.4B" label="Liquidity" />
-              <StatItem value="<5s" label="Latency" />
+              <StatItem value="6+" label={t.home.chains} />
+              <StatItem value="12K+" label={t.home.pools} />
+              <StatItem value="$2.4B" label={t.common.liquidity} />
+              <StatItem value="<5s" label={t.home.latency} />
             </div>
           </div>
         </footer>

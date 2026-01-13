@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { formatNumber } from '@/lib/api';
+import { useTranslations } from '@/lib/i18n';
+import { usePoolRealtime } from '@/lib/realtime-provider';
+import { RefreshCw, Wifi } from 'lucide-react';
 
 // Get block explorer URL for transaction
 const getExplorerUrl = (chainId: string, txHash: string): string => {
@@ -41,12 +44,16 @@ export default function TradeHistory({
   baseSymbol,
   priceUsd,
 }: TradeHistoryProps) {
+  const t = useTranslations();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [newTradeIds, setNewTradeIds] = useState<Set<string>>(new Set());
   const prevTradesRef = useRef<Set<string>>(new Set());
   const isInitialLoad = useRef(true);
+
+  // Use realtime context for connection status
+  const { usePolling, isConnected } = usePoolRealtime(chainId, poolAddress);
 
   useEffect(() => {
     const fetchTrades = async () => {
@@ -107,7 +114,7 @@ export default function TradeHistory({
     };
 
     fetchTrades();
-    // Refresh every 5 seconds
+    // Refresh every 5 seconds (polling mode)
     const interval = setInterval(fetchTrades, 5000);
     return () => clearInterval(interval);
   }, [chainId, poolAddress]);
@@ -134,9 +141,9 @@ export default function TradeHistory({
   if (loading) {
     return (
       <div className="bg-[#161b22] rounded-lg border border-[#30363d] p-4 h-full">
-        <div className="text-sm font-medium mb-3">Trade History</div>
+        <div className="text-sm font-medium mb-3">{t.tradeHistory.title}</div>
         <div className="text-center text-gray-400 animate-pulse py-8">
-          Loading trades...
+          {t.tradeHistory.loadingTrades}
         </div>
       </div>
     );
@@ -145,7 +152,7 @@ export default function TradeHistory({
   if (error) {
     return (
       <div className="bg-[#161b22] rounded-lg border border-[#30363d] p-4 h-full">
-        <div className="text-sm font-medium mb-3">Trade History</div>
+        <div className="text-sm font-medium mb-3">{t.tradeHistory.title}</div>
         <div className="text-center text-gray-500 text-sm py-8">{error}</div>
       </div>
     );
@@ -167,8 +174,20 @@ export default function TradeHistory({
       {/* Header */}
       <div className="px-3 py-2 border-b border-[#30363d] flex-shrink-0">
         <div className="flex items-center justify-between">
-          <span className="text-base font-medium">Trade History</span>
-          <span className="text-sm text-gray-400">{trades.length} trades</span>
+          <div className="flex items-center gap-2">
+            <span className="text-base font-medium">{t.tradeHistory.title}</span>
+            {/* Connection status indicator */}
+            <div className="flex items-center gap-1" title={usePolling ? 'Polling mode (5s)' : isConnected ? 'WebSocket connected' : 'Disconnected'}>
+              {usePolling ? (
+                <RefreshCw size={12} className="text-yellow-500 animate-spin" style={{ animationDuration: '3s' }} />
+              ) : isConnected ? (
+                <Wifi size={12} className="text-[#3fb950]" />
+              ) : (
+                <Wifi size={12} className="text-[#f85149]" />
+              )}
+            </div>
+          </div>
+          <span className="text-sm text-gray-400">{trades.length} {t.tradeHistory.trades}</span>
         </div>
         {/* Buy/Sell summary bar */}
         <div className="mt-2 flex items-center gap-2">
@@ -199,17 +218,17 @@ export default function TradeHistory({
         <table className="w-full text-sm">
           <thead className="text-gray-400 sticky top-0 bg-[#161b22]">
             <tr className="border-b border-[#21262d]">
-              <th className="text-left px-2 py-2 font-normal">Price</th>
+              <th className="text-left px-2 py-2 font-normal">{t.common.price}</th>
               <th className="text-right px-2 py-2 font-normal hidden sm:table-cell">{baseSymbol}</th>
               <th className="text-right px-2 py-2 font-normal">USD</th>
-              <th className="text-right px-2 py-2 font-normal">Time</th>
-              <th className="text-right px-2 py-2 font-normal hidden sm:table-cell">Tx</th>
+              <th className="text-right px-2 py-2 font-normal">{t.common.time}</th>
+              <th className="text-right px-2 py-2 font-normal hidden sm:table-cell">{t.tradeHistory.tx}</th>
             </tr>
           </thead>
           <tbody>
             {trades.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center text-gray-500 py-8">No trades yet</td>
+                <td colSpan={5} className="text-center text-gray-500 py-8">{t.tradeHistory.noTrades}</td>
               </tr>
             ) : (
               trades.map((trade) => {
@@ -257,12 +276,12 @@ export default function TradeHistory({
       {/* Volume summary */}
       <div className="px-3 py-2 border-t border-[#30363d] text-sm flex-shrink-0">
         <div className="flex justify-between text-gray-400">
-          <span>Recent Volume</span>
+          <span>{t.tradeHistory.recentVolume}</span>
           <span>${formatNumber(buyVolume + sellVolume)}</span>
         </div>
         <div className="flex justify-between mt-1">
-          <span className="text-[#3fb950]">Buy: ${formatNumber(buyVolume)}</span>
-          <span className="text-[#f85149]">Sell: ${formatNumber(sellVolume)}</span>
+          <span className="text-[#3fb950]">{t.trade.buy}: ${formatNumber(buyVolume)}</span>
+          <span className="text-[#f85149]">{t.trade.sell}: ${formatNumber(sellVolume)}</span>
         </div>
       </div>
     </div>

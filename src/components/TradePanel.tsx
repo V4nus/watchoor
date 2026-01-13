@@ -6,6 +6,7 @@ import { injected } from 'wagmi/connectors';
 import { formatUnits, parseUnits, erc20Abi } from 'viem';
 import { CHAIN_ID_MAP } from '@/lib/wagmi';
 import { formatNumber } from '@/lib/api';
+import { useTranslations } from '@/lib/i18n';
 import {
   getQuote,
   isChainSupported,
@@ -42,6 +43,9 @@ interface TradePanelProps {
 
 type TradeStatus = 'idle' | 'signing' | 'submitting' | 'pending' | 'filled' | 'error';
 
+// Slippage presets in basis points (1 bp = 0.01%)
+const SLIPPAGE_PRESETS = [10, 50, 100, 500]; // 0.1%, 0.5%, 1%, 5%
+
 export default function TradePanel({
   chainId,
   baseTokenAddress,
@@ -51,6 +55,7 @@ export default function TradePanel({
   currentPrice = 0,
   onTradeSuccess,
 }: TradePanelProps) {
+  const t = useTranslations();
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [amount, setAmount] = useState('');
   const [sliderValue, setSliderValue] = useState(0);
@@ -67,6 +72,9 @@ export default function TradePanel({
     sellSymbol: string;
     buySymbol: string;
   } | null>(null);
+  const [slippageBps, setSlippageBps] = useState(50); // Default 0.5%
+  const [showSlippageSettings, setShowSlippageSettings] = useState(false);
+  const [customSlippage, setCustomSlippage] = useState('');
 
   const { address, isConnected } = useAccount();
   const { connect, isPending: isConnecting } = useConnect();
@@ -201,7 +209,7 @@ export default function TradePanel({
         amount: amountWei,
         kind: 'sell',
         userAddress: address,
-        slippageBps: 50, // 0.5% slippage
+        slippageBps,
       });
 
       setQuote(quoteResult);
@@ -211,13 +219,13 @@ export default function TradePanel({
       if (error instanceof Error) {
         setQuoteError(error.message);
       } else {
-        setQuoteError('Unable to get quote');
+        setQuoteError(t.trade.unableGetQuote);
       }
       setQuote(null);
     } finally {
       setIsLoadingQuote(false);
     }
-  }, [amount, address, isSupportedChain, tradeType, quoteTokenAddress, baseTokenAddress, inputDecimals, targetChainId]);
+  }, [amount, address, isSupportedChain, tradeType, quoteTokenAddress, baseTokenAddress, inputDecimals, targetChainId, slippageBps]);
 
   // Debounce quote fetching
   useEffect(() => {
@@ -308,7 +316,7 @@ export default function TradePanel({
         receiver: address,
         feeAmount: '0',
         kind: 'sell',
-        slippageBps: 50, // 0.5% slippage
+        slippageBps,
       });
 
       // Get EIP-712 domain
@@ -392,18 +400,18 @@ export default function TradePanel({
         console.log('Order not filled, status:', status);
         setTradeStatus('error');
         if (status === 'expired') {
-          setTradeError('Order expired (5 min timeout)');
+          setTradeError(t.trade.orderExpired);
         } else if (status === 'cancelled') {
-          setTradeError('Order was cancelled');
+          setTradeError(t.trade.orderCancelled);
         } else {
-          setTradeError('Order not filled - please try again');
+          setTradeError(t.trade.orderNotFilled);
         }
       }
 
     } catch (error: unknown) {
       console.error('Trade error:', error);
       setTradeStatus('error');
-      let errorMessage = 'Transaction failed';
+      let errorMessage = t.trade.txFailed;
       if (error instanceof Error) {
         errorMessage = error.message;
       } else if (error && typeof error === 'object' && 'message' in error) {
@@ -411,15 +419,15 @@ export default function TradePanel({
       }
       // User-friendly error messages
       if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
-        setTradeError('Transaction cancelled');
+        setTradeError(t.trade.txCancelled);
       } else if (errorMessage.includes('InsufficientBalance')) {
-        setTradeError('Insufficient balance');
+        setTradeError(t.trade.insufficientBalance);
       } else if (errorMessage.includes('InsufficientAllowance')) {
-        setTradeError('Token not approved');
+        setTradeError(t.trade.notApproved);
       } else if (errorMessage.includes('QuoteNotFound') || errorMessage.includes('expired')) {
-        setTradeError('Quote expired, please try again');
+        setTradeError(t.trade.quoteExpired);
       } else if (errorMessage.includes('SellAmountDoesNotCoverFee')) {
-        setTradeError('Amount too small to cover fees');
+        setTradeError(t.trade.amountTooSmall);
       } else {
         setTradeError(errorMessage.length > 100 ? errorMessage.slice(0, 100) + '...' : errorMessage);
       }
@@ -437,14 +445,27 @@ export default function TradePanel({
 
   return (
     <div className="bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden relative">
-      {/* Header: Swap label + refresh */}
+      {/* Header: Swap label + settings */}
       <div className="px-3 py-2 border-b border-[#30363d] flex items-center justify-between">
-        <span className="text-base font-medium">Swap</span>
+        <span className="text-base font-medium">{t.trade.swap}</span>
         <div className="flex items-center gap-2 text-gray-400">
+          {/* Slippage settings button */}
+          <button
+            onClick={() => setShowSlippageSettings(!showSlippageSettings)}
+            className={`hover:text-white p-1 flex items-center gap-1 text-xs ${showSlippageSettings ? 'text-[#58a6ff]' : ''}`}
+            title={t.trade.slippage}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>{(slippageBps / 100).toFixed(1)}%</span>
+          </button>
+          {/* Refresh button */}
           <button
             onClick={fetchQuote}
             className="hover:text-white p-1"
-            title="Refresh quote"
+            title={t.common.refresh}
             disabled={isLoadingQuote}
           >
             <svg className={`w-5 h-5 ${isLoadingQuote ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -453,6 +474,59 @@ export default function TradePanel({
           </button>
         </div>
       </div>
+
+      {/* Slippage Settings Panel */}
+      {showSlippageSettings && (
+        <div className="px-3 py-3 border-b border-[#30363d] bg-[#0d1117]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-gray-400">{t.trade.slippage}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Preset buttons */}
+            {SLIPPAGE_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                onClick={() => {
+                  setSlippageBps(preset);
+                  setCustomSlippage('');
+                  setQuote(null);
+                }}
+                className={`px-3 py-1.5 rounded text-sm transition-colors ${
+                  slippageBps === preset && !customSlippage
+                    ? 'bg-[#58a6ff] text-white'
+                    : 'bg-[#21262d] text-gray-300 hover:bg-[#30363d]'
+                }`}
+              >
+                {preset / 100}%
+              </button>
+            ))}
+            {/* Custom input */}
+            <div className="flex-1 relative">
+              <input
+                type="text"
+                value={customSlippage}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  setCustomSlippage(value);
+                  const numValue = parseFloat(value);
+                  if (numValue > 0 && numValue <= 50) {
+                    setSlippageBps(Math.round(numValue * 100));
+                    setQuote(null);
+                  }
+                }}
+                placeholder={t.trade.slippageCustom}
+                className="w-full bg-[#21262d] border border-[#30363d] rounded px-2 py-1.5 text-sm text-white placeholder-gray-500 focus:border-[#58a6ff] focus:outline-none"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
+            </div>
+          </div>
+          {slippageBps > 500 && (
+            <div className="mt-2 text-xs text-yellow-500">
+              High slippage may result in unfavorable trades
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Buy/Sell Toggle */}
       <div className="flex border-b border-[#30363d]">
@@ -464,7 +538,7 @@ export default function TradePanel({
               : 'text-gray-400 hover:text-white'
           }`}
         >
-          Buy
+          {t.trade.buy}
         </button>
         <button
           onClick={() => { setTradeType('sell'); setQuote(null); setTradeStatus('idle'); }}
@@ -474,7 +548,7 @@ export default function TradePanel({
               : 'text-gray-400 hover:text-white'
           }`}
         >
-          Sell
+          {t.trade.sell}
         </button>
       </div>
 
@@ -484,22 +558,22 @@ export default function TradePanel({
           <div className="bg-[#58a6ff]/10 border border-[#58a6ff]/30 rounded p-3">
             <div className="text-[#58a6ff] text-base font-medium mb-2 text-center flex items-center justify-center gap-2">
               <div className="w-4 h-4 border-2 border-[#58a6ff] border-t-transparent rounded-full animate-spin" />
-              Waiting for execution...
+              {t.trade.waitingExecution}
             </div>
             {tradeDetails && (
               <div className="text-sm space-y-1 mb-2">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Sell</span>
+                  <span className="text-gray-400">{t.trade.sell}</span>
                   <span className="text-white">{formatNumber(parseFloat(tradeDetails.sellAmount))} {tradeDetails.sellSymbol}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Buy</span>
+                  <span className="text-gray-400">{t.trade.buy}</span>
                   <span className="text-[#58a6ff]">~{formatNumber(parseFloat(tradeDetails.buyAmount))} {tradeDetails.buySymbol}</span>
                 </div>
               </div>
             )}
             <div className="text-xs text-gray-500 text-center mb-2">
-              Order valid for 5 min • Auto-expires if not filled
+              {t.trade.orderValid}
             </div>
             <a
               href={getOrderExplorerUrl(targetChainId, orderId)}
@@ -507,7 +581,7 @@ export default function TradePanel({
               rel="noopener noreferrer"
               className="block text-sm text-[#58a6ff] hover:underline text-center"
             >
-              Track order on CoW Explorer →
+              {t.trade.trackOrder} →
             </a>
           </div>
         )}
@@ -515,15 +589,15 @@ export default function TradePanel({
         {/* Filled Message - Order successfully executed */}
         {tradeStatus === 'filled' && orderId && (
           <div className="bg-[#3fb950]/10 border border-[#3fb950]/30 rounded p-3">
-            <div className="text-[#3fb950] text-base font-medium mb-2 text-center">Trade Executed!</div>
+            <div className="text-[#3fb950] text-base font-medium mb-2 text-center">{t.trade.tradeExecuted}</div>
             {tradeDetails && (
               <div className="text-sm space-y-1 mb-2">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Sold</span>
+                  <span className="text-gray-400">{t.trade.sold}</span>
                   <span className="text-white">{formatNumber(parseFloat(tradeDetails.sellAmount))} {tradeDetails.sellSymbol}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Received</span>
+                  <span className="text-gray-400">{t.trade.received}</span>
                   <span className="text-[#3fb950]">{formatNumber(parseFloat(tradeDetails.buyAmount))} {tradeDetails.buySymbol}</span>
                 </div>
               </div>
@@ -534,7 +608,7 @@ export default function TradePanel({
               rel="noopener noreferrer"
               className="block text-sm text-[#58a6ff] hover:underline text-center"
             >
-              View on CoW Explorer →
+              {t.trade.viewOrder} →
             </a>
           </div>
         )}
@@ -548,9 +622,9 @@ export default function TradePanel({
 
         {/* Market Order Label */}
         <div className="flex items-center justify-between text-sm">
-          <span className="px-2 py-1 bg-[#30363d] rounded text-white">Market</span>
+          <span className="px-2 py-1 bg-[#30363d] rounded text-white">{t.trade.market}</span>
           <span className="text-gray-500">
-            {isLoadingQuote ? 'Fetching price...' : 'Best available price'}
+            {isLoadingQuote ? t.trade.fetchingPrice : t.trade.bestPrice}
           </span>
         </div>
 
@@ -558,10 +632,10 @@ export default function TradePanel({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-sm text-gray-400">
-              {tradeType === 'buy' ? `Pay` : `Sell`}
+              {tradeType === 'buy' ? t.trade.pay : t.trade.sell}
             </label>
             <div className="flex items-center gap-1 text-sm">
-              <span className="text-gray-500">Balance:</span>
+              <span className="text-gray-500">{t.common.balance}:</span>
               <span className={tradeType === 'buy' ? 'text-[#3fb950]' : 'text-[#f85149]'}>
                 {isConnected ? formatBalance(availableBalance) : '--'}
               </span>
@@ -621,9 +695,9 @@ export default function TradePanel({
         {/* Estimated Output - Receive */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <label className="text-sm text-gray-400">Receive</label>
+            <label className="text-sm text-gray-400">{t.trade.receive}</label>
             <div className="flex items-center gap-1 text-sm">
-              <span className="text-gray-500">Balance:</span>
+              <span className="text-gray-500">{t.common.balance}:</span>
               <span className="text-white">
                 {isConnected ? formatBalance(outputBalance) : '--'}
               </span>
@@ -657,14 +731,14 @@ export default function TradePanel({
         {quote && !isLoadingQuote && (
           <div className="text-sm text-gray-400 bg-[#21262d] rounded px-3 py-2 space-y-1">
             <div className="flex justify-between">
-              <span>Rate</span>
+              <span>{t.trade.rate}</span>
               <span className="text-white">
                 1 {tradeType === 'buy' ? baseSymbol : quoteSymbol} = {formatNumber(amountNum / estimatedOutput)} {tradeType === 'buy' ? quoteSymbol : baseSymbol}
               </span>
             </div>
             <div className="flex justify-between">
-              <span>Network Fee</span>
-              <span className="text-[#3fb950]">Free (CoW)</span>
+              <span>{t.trade.networkFee}</span>
+              <span className="text-[#3fb950]">{t.trade.free}</span>
             </div>
           </div>
         )}
@@ -676,18 +750,18 @@ export default function TradePanel({
             disabled={isConnecting}
             className="w-full py-3.5 bg-[#58a6ff] hover:bg-[#58a6ff]/80 disabled:opacity-50 text-white text-base font-medium rounded transition-colors"
           >
-            {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+            {isConnecting ? t.trade.connecting : t.trade.connectWallet}
           </button>
         ) : !isCorrectChain ? (
           <button
             onClick={handleSwitchChain}
             className="w-full py-3.5 bg-yellow-600 hover:bg-yellow-600/80 text-white text-base font-medium rounded transition-colors"
           >
-            Switch to {chainId.charAt(0).toUpperCase() + chainId.slice(1)}
+            {t.trade.switchTo} {chainId.charAt(0).toUpperCase() + chainId.slice(1)}
           </button>
         ) : !isSupportedChain ? (
           <div className="text-center text-yellow-500 text-base py-3">
-            Trading not available on this chain
+            {t.trade.notAvailable}
           </div>
         ) : needsApproval ? (
           <button
@@ -695,7 +769,7 @@ export default function TradePanel({
             disabled={isApproving || !quote}
             className="w-full py-3.5 bg-[#58a6ff] hover:bg-[#58a6ff]/80 disabled:opacity-50 text-white text-base font-medium rounded transition-colors"
           >
-            {isApproving ? 'Approving...' : `Approve ${tradeType === 'buy' ? quoteSymbol : baseSymbol}`}
+            {isApproving ? t.trade.approving : `${t.trade.approve} ${tradeType === 'buy' ? quoteSymbol : baseSymbol}`}
           </button>
         ) : (
           <button
@@ -710,15 +784,15 @@ export default function TradePanel({
             {tradeStatus === 'signing' ? (
               <span className="flex items-center justify-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Sign in wallet...
+                {t.trade.signInWallet}
               </span>
             ) : tradeStatus === 'submitting' ? (
               <span className="flex items-center justify-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Submitting...
+                {t.trade.submitting}
               </span>
             ) : (
-              tradeType === 'buy' ? `Buy ${baseSymbol}` : `Sell ${baseSymbol}`
+              tradeType === 'buy' ? `${t.trade.buy} ${baseSymbol}` : `${t.trade.sell} ${baseSymbol}`
             )}
           </button>
         )}
@@ -727,7 +801,7 @@ export default function TradePanel({
       {/* Wallets Section */}
       {isConnected && (
         <div className="px-3 py-2 border-t border-[#30363d] flex items-center justify-between text-sm">
-          <span className="text-gray-400">Wallet</span>
+          <span className="text-gray-400">{t.common.wallet}</span>
           <div className="flex items-center gap-2">
             <span className="text-[#58a6ff]">
               {address?.slice(0, 4)}...{address?.slice(-4)}
@@ -735,7 +809,7 @@ export default function TradePanel({
             <button
               onClick={() => disconnect()}
               className="text-gray-400 hover:text-[#f85149] transition-colors"
-              title="Disconnect"
+              title={t.common.disconnect}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -753,7 +827,7 @@ export default function TradePanel({
           rel="noopener noreferrer"
           className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
         >
-          Powered by CoW Protocol
+          {t.trade.poweredBy}
         </a>
       </div>
     </div>

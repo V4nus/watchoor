@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { WalletProvider } from "@/components/WalletProvider";
+import { I18nProvider } from "@/lib/i18n";
+import { RealtimeProvider } from "@/lib/realtime-provider";
 
 export const metadata: Metadata = {
   title: "0xArgus - Decode AMM Liquidity Into Order Flow",
@@ -26,9 +28,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased font-sans">
-        <WalletProvider>
-          {children}
-        </WalletProvider>
+        <I18nProvider>
+          <RealtimeProvider pollingInterval={5000}>
+            <WalletProvider>
+              {children}
+            </WalletProvider>
+          </RealtimeProvider>
+        </I18nProvider>
       </body>
     </html>
   );
