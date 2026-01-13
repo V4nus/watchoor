@@ -397,6 +397,51 @@ export async function getOrderStatus(chainId: number, orderId: string) {
   }
 }
 
+// Order status types from CoW Protocol
+export type OrderStatus = 'open' | 'fulfilled' | 'cancelled' | 'expired' | 'presignaturePending';
+
+// Poll order status until filled, cancelled, or expired
+export async function waitForOrderFill(
+  chainId: number,
+  orderId: string,
+  options: {
+    maxWaitMs?: number;      // Maximum time to wait (default 120s)
+    pollIntervalMs?: number; // Polling interval (default 3s)
+    onStatusChange?: (status: OrderStatus) => void;
+  } = {}
+): Promise<{ filled: boolean; status: OrderStatus }> {
+  const { maxWaitMs = 120000, pollIntervalMs = 3000, onStatusChange } = options;
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxWaitMs) {
+    try {
+      const order = await getOrderStatus(chainId, orderId);
+      const status = order.status as OrderStatus;
+
+      // Notify status change
+      onStatusChange?.(status);
+
+      // Check terminal states
+      if (status === 'fulfilled') {
+        return { filled: true, status };
+      }
+      if (status === 'cancelled' || status === 'expired') {
+        return { filled: false, status };
+      }
+
+      // Still open, wait and poll again
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    } catch (error) {
+      console.error('Error polling order status:', error);
+      // Continue polling on transient errors
+      await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+    }
+  }
+
+  // Timeout reached
+  return { filled: false, status: 'open' };
+}
+
 // Get CoW Explorer URL for an order
 export function getOrderExplorerUrl(chainId: number, orderId: string): string {
   const chainName = COW_SUPPORTED_CHAINS[chainId] || 'mainnet';

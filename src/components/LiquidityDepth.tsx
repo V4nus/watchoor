@@ -495,11 +495,6 @@ export default function LiquidityDepth({
           <div className="flex items-center justify-between mb-2 gap-1">
             <div className="flex items-center gap-1 sm:gap-2">
               <span className="text-xs sm:text-sm font-medium">Order Book</span>
-              {/* Live indicator */}
-              <span className={`flex items-center gap-1 text-[10px] sm:text-xs ${isRefreshing ? 'text-yellow-500' : 'text-green-500'}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${isRefreshing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
-                <span className="hidden sm:inline">{isRefreshing ? 'Updating...' : 'Live'}</span>
-              </span>
             </div>
             {/* Precision Selector - dynamic based on price */}
             <div className="flex items-center gap-0.5 sm:gap-1 bg-[#21262d] rounded p-0.5">

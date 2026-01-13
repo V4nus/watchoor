@@ -16,7 +16,9 @@ import {
   COW_ORDER_TYPES,
   submitOrder,
   getOrderExplorerUrl,
+  waitForOrderFill,
   type QuoteResult,
+  type OrderStatus,
 } from '@/lib/cow';
 
 // Native token symbols per chain
@@ -38,7 +40,7 @@ interface TradePanelProps {
   onTradeSuccess?: (tradeType: 'buy' | 'sell') => void;
 }
 
-type TradeStatus = 'idle' | 'signing' | 'submitting' | 'success' | 'error';
+type TradeStatus = 'idle' | 'signing' | 'submitting' | 'pending' | 'filled' | 'error';
 
 export default function TradePanel({
   chainId,
@@ -343,7 +345,7 @@ export default function TradePanel({
       });
 
       setOrderId(newOrderId);
-      setTradeStatus('success');
+      setTradeStatus('pending');
 
       // Save trade details for display
       const sellAmountFormatted = formatUnits(BigInt(quote.sellAmount), inputDecimals);
@@ -355,17 +357,33 @@ export default function TradePanel({
         buySymbol: tradeType === 'buy' ? baseSymbol : quoteSymbol,
       });
 
-      // Trigger chart beam effect (parent)
-      onTradeSuccess?.(tradeType);
+      // Poll for order execution (wait up to 120s)
+      const { filled, status } = await waitForOrderFill(targetChainId, newOrderId, {
+        maxWaitMs: 120000,
+        pollIntervalMs: 2000,
+        onStatusChange: (newStatus) => {
+          console.log('Order status changed:', newStatus);
+        },
+      });
 
-      // Reset form after success
-      setTimeout(() => {
-        setAmount('');
-        setSliderValue(0);
-        setQuote(null);
-        setTradeStatus('idle');
-        setTradeDetails(null);
-      }, 5000);
+      if (filled) {
+        setTradeStatus('filled');
+        // Trigger chart beam effect only when actually filled!
+        onTradeSuccess?.(tradeType);
+
+        // Reset form after success
+        setTimeout(() => {
+          setAmount('');
+          setSliderValue(0);
+          setQuote(null);
+          setTradeStatus('idle');
+          setTradeDetails(null);
+        }, 5000);
+      } else {
+        // Order not filled (cancelled, expired, or timeout)
+        console.log('Order not filled, status:', status);
+        // Keep showing pending state with link to explorer
+      }
 
     } catch (error: unknown) {
       console.error('Trade error:', error);
@@ -400,7 +418,7 @@ export default function TradePanel({
     return formatNumber(value);
   };
 
-  const isTrading = tradeStatus === 'signing' || tradeStatus === 'submitting';
+  const isTrading = tradeStatus === 'signing' || tradeStatus === 'submitting' || tradeStatus === 'pending';
 
   return (
     <div className="bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden relative">
@@ -446,10 +464,13 @@ export default function TradePanel({
       </div>
 
       <div className="p-3 space-y-3">
-        {/* Success Message */}
-        {tradeStatus === 'success' && orderId && (
-          <div className="bg-[#3fb950]/10 border border-[#3fb950]/30 rounded p-3">
-            <div className="text-[#3fb950] text-sm font-medium mb-2 text-center">Swap Submitted!</div>
+        {/* Pending Message - Order submitted, waiting for fill */}
+        {tradeStatus === 'pending' && orderId && (
+          <div className="bg-[#58a6ff]/10 border border-[#58a6ff]/30 rounded p-3">
+            <div className="text-[#58a6ff] text-sm font-medium mb-2 text-center flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-[#58a6ff] border-t-transparent rounded-full animate-spin" />
+              Waiting for execution...
+            </div>
             {tradeDetails && (
               <div className="text-xs space-y-1 mb-2">
                 <div className="flex justify-between">
@@ -458,12 +479,12 @@ export default function TradePanel({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Buy</span>
-                  <span className="text-[#3fb950]">~{formatNumber(parseFloat(tradeDetails.buyAmount))} {tradeDetails.buySymbol}</span>
+                  <span className="text-[#58a6ff]">~{formatNumber(parseFloat(tradeDetails.buyAmount))} {tradeDetails.buySymbol}</span>
                 </div>
               </div>
             )}
             <div className="text-[10px] text-gray-500 text-center mb-2">
-              Market order submitted - typically fills within 30s
+              Market order typically fills within 30s
             </div>
             <a
               href={getOrderExplorerUrl(targetChainId, orderId)}
@@ -472,6 +493,33 @@ export default function TradePanel({
               className="block text-xs text-[#58a6ff] hover:underline text-center"
             >
               Track order on CoW Explorer →
+            </a>
+          </div>
+        )}
+
+        {/* Filled Message - Order successfully executed */}
+        {tradeStatus === 'filled' && orderId && (
+          <div className="bg-[#3fb950]/10 border border-[#3fb950]/30 rounded p-3">
+            <div className="text-[#3fb950] text-sm font-medium mb-2 text-center">Trade Executed!</div>
+            {tradeDetails && (
+              <div className="text-xs space-y-1 mb-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Sold</span>
+                  <span className="text-white">{formatNumber(parseFloat(tradeDetails.sellAmount))} {tradeDetails.sellSymbol}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Received</span>
+                  <span className="text-[#3fb950]">{formatNumber(parseFloat(tradeDetails.buyAmount))} {tradeDetails.buySymbol}</span>
+                </div>
+              </div>
+            )}
+            <a
+              href={getOrderExplorerUrl(targetChainId, orderId)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block text-xs text-[#58a6ff] hover:underline text-center"
+            >
+              View on CoW Explorer →
             </a>
           </div>
         )}
