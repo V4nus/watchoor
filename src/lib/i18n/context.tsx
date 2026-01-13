@@ -22,14 +22,24 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     setMounted(true);
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem(STORAGE_KEY) as Language;
-      if (saved && (saved === 'en' || saved === 'zh')) {
+      const validLanguages: Language[] = ['en', 'ko', 'ja', 'es', 'pt', 'ru'];
+      if (saved && validLanguages.includes(saved)) {
         setLanguageState(saved);
       } else {
         // Auto-detect from browser
         const browserLang = navigator.language.toLowerCase();
-        if (browserLang.startsWith('zh')) {
-          setLanguageState('zh');
+        if (browserLang.startsWith('ko')) {
+          setLanguageState('ko');
+        } else if (browserLang.startsWith('ja')) {
+          setLanguageState('ja');
+        } else if (browserLang.startsWith('es')) {
+          setLanguageState('es');
+        } else if (browserLang.startsWith('pt')) {
+          setLanguageState('pt');
+        } else if (browserLang.startsWith('ru')) {
+          setLanguageState('ru');
         }
+        // Default remains 'en'
       }
     }
   }, []);
