@@ -1,0 +1,97 @@
+// Prisma schema for DEX Screener LP Data
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Pool information (cached from DexScreener)
+model Pool {
+  id            String   @id @default(cuid())
+  chainId       String
+  poolAddress   String
+  dex           String
+  baseSymbol    String
+  quoteSymbol   String
+  baseAddress   String
+  quoteAddress  String
+  baseDecimals  Int      @default(18)
+  quoteDecimals Int      @default(18)
+  baseImageUrl  String?
+  priceUsd      Float
+  liquidity     Float
+  volume24h     Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  liquiditySnapshots LiquiditySnapshot[]
+  lpPositions        LPPosition[]
+
+  @@unique([chainId, poolAddress])
+  @@index([chainId])
+  @@index([baseSymbol])
+}
+
+// Liquidity depth snapshots (order book data)
+model LiquiditySnapshot {
+  id           String   @id @default(cuid())
+  poolId       String
+  pool         Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  currentPrice Float
+  bidsJson     String   @db.Text // JSON array of bids
+  asksJson     String   @db.Text // JSON array of asks
+  token0Symbol String
+  token1Symbol String
+  createdAt    DateTime @default(now())
+
+  @@index([poolId])
+  @@index([createdAt])
+}
+
+// LP Position events (Mint/Burn)
+model LPPosition {
+  id          String   @id @default(cuid())
+  poolId      String
+  pool        Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  owner       String
+  tickLower   Int
+  tickUpper   Int
+  liquidity   String   // BigInt as string
+  amount0     String   // BigInt as string
+  amount1     String   // BigInt as string
+  txHash      String
+  blockNumber Int
+  timestamp   DateTime
+  type        String   // 'mint' or 'burn'
+  createdAt   DateTime @default(now())
+
+  @@unique([txHash, tickLower, tickUpper, type])
+  @@index([poolId])
+  @@index([owner])
+  @@index([timestamp])
+  @@index([blockNumber])
+}
+
+// Quote token prices (ETH, BNB, etc.)
+model QuotePrice {
+  id        String   @id @default(cuid())
+  symbol    String   @unique
+  priceUsd  Float
+  updatedAt DateTime @updatedAt
+}
+
+// Sync status tracking
+model SyncStatus {
+  id          String   @id @default(cuid())
+  chainId     String
+  poolAddress String
+  lastBlock   Int
+  syncType    String   // 'lp_positions', 'liquidity'
+  updatedAt   DateTime @updatedAt
+
+  @@unique([chainId, poolAddress, syncType])
+}

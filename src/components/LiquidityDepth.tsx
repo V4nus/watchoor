@@ -1,0 +1,826 @@
+'use client';
+
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { DepthData } from '@/lib/liquidity';
+import { formatNumber } from '@/lib/api';
+import { isStablecoin } from '@/lib/quote-prices';
+import { getRealtimeService, TradeEvent } from '@/lib/realtime';
+
+interface LiquidityDepthProps {
+  chainId: string;
+  poolAddress: string;
+  priceUsd: number;
+  baseSymbol: string;
+  quoteSymbol: string;
+  liquidityUsd?: number; // Fallback from DexScreener
+  liquidityBase?: number; // Base token amount from DexScreener (e.g., PING)
+  liquidityQuote?: number; // Quote token amount from DexScreener (e.g., USDC)
+  baseTokenAddress?: string; // For V4 pools
+  quoteTokenAddress?: string; // For V4 pools
+}
+
+// Dynamic precision based on current price
+type ViewMode = 'individual' | 'cumulative';
+
+// Track changed values for highlighting
+interface ChangedValue {
+  price: number;
+  field: 'base' | 'quote';
+  direction: 'up' | 'down';
+  timestamp: number;
+}
+
+export default function LiquidityDepth({
+  chainId,
+  poolAddress,
+  priceUsd,
+  baseSymbol,
+  quoteSymbol,
+  liquidityUsd,
+  liquidityBase,
+  liquidityQuote,
+  baseTokenAddress,
+  quoteTokenAddress,
+}: LiquidityDepthProps) {
+  const [depthData, setDepthData] = useState<DepthData | null>(null);
+  const [simpleData, setSimpleData] = useState<{
+    token0: number;
+    token1: number;
+    token0Symbol: string;
+    token1Symbol: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [precisionIndex, setPrecisionIndex] = useState<number>(1); // 0=fine, 1=medium, 2=coarse
+  const [viewMode, setViewMode] = useState<ViewMode>('individual');
+  const [changedValues, setChangedValues] = useState<Map<string, ChangedValue>>(new Map());
+  const [quoteTokenUsdPrice, setQuoteTokenUsdPrice] = useState<number>(1);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [recentTrades, setRecentTrades] = useState<TradeEvent[]>([]);
+  const [tradeAdjustments, setTradeAdjustments] = useState<{ askConsumed: number; bidConsumed: number }>({ askConsumed: 0, bidConsumed: 0 });
+  const isInitialLoad = useRef(true);
+  const isFetchingRef = useRef(false); // Prevent request stacking
+  const prevDataRef = useRef<Map<number, { base: number; quote: number }>>(new Map());
+  const lastApiUpdateRef = useRef<number>(Date.now()); // Track when API data was refreshed
+
+  // Fetch quote token USD price
+  useEffect(() => {
+    const fetchQuotePrice = async () => {
+      // If quote token is a stablecoin, price is $1
+      if (isStablecoin(quoteSymbol)) {
+        setQuoteTokenUsdPrice(1);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/quote-price?symbol=${encodeURIComponent(quoteSymbol)}`);
+        const result = await response.json();
+        if (result.success && result.price) {
+          setQuoteTokenUsdPrice(result.price);
+        }
+      } catch (error) {
+        console.error('Failed to fetch quote token price:', error);
+        // Use fallback prices for common tokens
+        const fallbacks: Record<string, number> = {
+          'WETH': 3500, 'ETH': 3500,
+          'WBNB': 600, 'BNB': 600,
+          'WMATIC': 0.8, 'MATIC': 0.8,
+          'SOL': 200, 'WSOL': 200,
+        };
+        setQuoteTokenUsdPrice(fallbacks[quoteSymbol.toUpperCase()] || 1);
+      }
+    };
+
+    fetchQuotePrice();
+    // Refresh every 5 minutes
+    const interval = setInterval(fetchQuotePrice, 300000);
+    return () => clearInterval(interval);
+  }, [quoteSymbol]);
+
+  // Subscribe to real-time trade events
+  useEffect(() => {
+    if (!baseTokenAddress) return;
+
+    const service = getRealtimeService();
+
+    const handleTrade = (trade: TradeEvent) => {
+      // Add trade to recent trades list (keep last 10)
+      setRecentTrades(prev => {
+        const newTrades = [trade, ...prev].slice(0, 10);
+        return newTrades;
+      });
+
+      // Update trade adjustments
+      setTradeAdjustments(prev => {
+        if (trade.type === 'buy') {
+          // Buy = ask liquidity consumed
+          return { ...prev, askConsumed: prev.askConsumed + trade.estimatedVolumeUsd };
+        } else {
+          // Sell = bid liquidity consumed
+          return { ...prev, bidConsumed: prev.bidConsumed + trade.estimatedVolumeUsd };
+        }
+      });
+    };
+
+    const unsubscribe = service.subscribeTrades(
+      chainId,
+      baseTokenAddress,
+      liquidityUsd || 100000, // Use pool liquidity for volume estimation
+      handleTrade
+    );
+
+    return () => unsubscribe();
+  }, [chainId, baseTokenAddress, liquidityUsd]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      // Skip if already fetching (prevent request stacking at 1s interval)
+      if (isFetchingRef.current && !isInitialLoad.current) {
+        return;
+      }
+      isFetchingRef.current = true;
+
+      // Only show loading on initial load, not on refreshes
+      if (isInitialLoad.current) {
+        setLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+      setError(null);
+
+      try {
+        const params = new URLSearchParams({
+          chainId,
+          poolAddress,
+          priceUsd: priceUsd.toString(),
+        });
+
+        // Add token addresses for V4 pools
+        if (baseTokenAddress) {
+          params.set('token0Address', baseTokenAddress);
+        }
+        if (quoteTokenAddress) {
+          params.set('token1Address', quoteTokenAddress);
+        }
+
+        // Add timeout to prevent infinite loading
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+        // For V4 pools, use order-flow API which has correct incremental calculation
+        const isV4Pool = poolAddress.length === 66;
+        let response;
+        let result;
+
+        if (isV4Pool) {
+          // Calculate precision to pass to API based on price
+          // Use fine precision (1/100 of price magnitude) to get detailed data
+          const priceMagnitude = Math.floor(Math.log10(priceUsd));
+          const apiPrecision = Math.pow(10, priceMagnitude - 2);
+
+          const orderFlowParams = new URLSearchParams({
+            chainId,
+            poolAddress,
+            priceUsd: priceUsd.toString(),
+            maxLevels: '100', // Request more levels since we're subdividing
+            precision: apiPrecision.toString(), // Pass precision to API for tick subdivision
+          });
+          response = await fetch(`/api/order-flow?${orderFlowParams}`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          const orderFlowResult = await response.json();
+
+          // Convert order-flow response to depth format
+          // API now returns REAL tick liquidity data from on-chain multicall
+          if (response.ok && orderFlowResult.success && orderFlowResult.data) {
+            const { bids, asks, currentPrice, poolReserves, initializedTicks, totalBidUsdc, totalAskPing } = orderFlowResult.data;
+
+            console.log(`[LiquidityDepth] Real tick data: ${initializedTicks} initialized ticks, ${totalBidUsdc?.toFixed(2)} USDC bids, ${totalAskPing?.toFixed(2)} PING asks`);
+
+            result = {
+              type: 'depth',
+              data: {
+                bids: (bids || []).map((b: { price: number; liquidityUSD: number; tokenAmount: number }) => ({
+                  price: b.price,
+                  token0Amount: 0,
+                  token1Amount: b.tokenAmount, // Real USDC amount from on-chain
+                  liquidityUSD: b.liquidityUSD,
+                })),
+                asks: (asks || []).map((a: { price: number; liquidityUSD: number; tokenAmount: number }) => ({
+                  price: a.price,
+                  token0Amount: a.tokenAmount, // Real PING amount from on-chain
+                  token1Amount: 0,
+                  liquidityUSD: a.liquidityUSD,
+                })),
+                currentPrice,
+                token0Symbol: baseSymbol,
+                token1Symbol: quoteSymbol,
+                token0Decimals: 18,
+                token1Decimals: 6,
+                poolReserves: poolReserves || null,
+              },
+            };
+          } else {
+            result = { error: orderFlowResult.error || 'Failed to fetch order flow data' };
+          }
+        } else {
+          response = await fetch(`/api/liquidity?${params}`, {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          result = await response.json();
+        }
+
+        if (!response.ok) {
+          setError(result.error || 'Failed to fetch liquidity data');
+          setDepthData(null);
+          setSimpleData(null);
+        } else if (result.type === 'depth') {
+          const newData = result.data as DepthData;
+
+          // Detect changes for highlighting (Binance-style)
+          if (!isInitialLoad.current) {
+            const newChanges = new Map<string, ChangedValue>();
+            const now = Date.now();
+
+            // Helper: check if value changed significantly (>0.1% or any change for small values)
+            const hasChanged = (newVal: number, oldVal: number): boolean => {
+              if (oldVal === 0) return newVal > 0;
+              const percentChange = Math.abs((newVal - oldVal) / oldVal);
+              return percentChange > 0.001; // 0.1% threshold
+            };
+
+            // Check bids
+            newData.bids.forEach((bid) => {
+              const key = `bid-${bid.price.toFixed(8)}`;
+              const prev = prevDataRef.current.get(bid.price);
+              const newBase = bid.token1Amount > 0 && bid.price > 0 ? bid.token1Amount / bid.price : 0;
+              const newQuote = bid.token1Amount;
+
+              if (prev) {
+                if (hasChanged(newBase, prev.base)) {
+                  newChanges.set(`${key}-base`, {
+                    price: bid.price,
+                    field: 'base',
+                    direction: newBase > prev.base ? 'up' : 'down',
+                    timestamp: now,
+                  });
+                }
+                if (hasChanged(newQuote, prev.quote)) {
+                  newChanges.set(`${key}-quote`, {
+                    price: bid.price,
+                    field: 'quote',
+                    direction: newQuote > prev.quote ? 'up' : 'down',
+                    timestamp: now,
+                  });
+                }
+              }
+              prevDataRef.current.set(bid.price, { base: newBase, quote: newQuote });
+            });
+
+            // Check asks
+            newData.asks.forEach((ask) => {
+              const key = `ask-${ask.price.toFixed(8)}`;
+              const prev = prevDataRef.current.get(ask.price);
+              const newBase = ask.token0Amount;
+              const newQuote = ask.token0Amount * ask.price;
+
+              if (prev) {
+                if (hasChanged(newBase, prev.base)) {
+                  newChanges.set(`${key}-base`, {
+                    price: ask.price,
+                    field: 'base',
+                    direction: newBase > prev.base ? 'up' : 'down',
+                    timestamp: now,
+                  });
+                }
+                if (hasChanged(newQuote, prev.quote)) {
+                  newChanges.set(`${key}-quote`, {
+                    price: ask.price,
+                    field: 'quote',
+                    direction: newQuote > prev.quote ? 'up' : 'down',
+                    timestamp: now,
+                  });
+                }
+              }
+              prevDataRef.current.set(ask.price, { base: newBase, quote: newQuote });
+            });
+
+            if (newChanges.size > 0) {
+              setChangedValues(newChanges);
+              // Clear highlights after 800ms (match animation duration)
+              setTimeout(() => setChangedValues(new Map()), 800);
+            }
+          } else {
+            // Initialize prevDataRef on first load
+            newData.bids.forEach((bid) => {
+              const base = bid.token1Amount > 0 && bid.price > 0 ? bid.token1Amount / bid.price : 0;
+              prevDataRef.current.set(bid.price, { base, quote: bid.token1Amount });
+            });
+            newData.asks.forEach((ask) => {
+              prevDataRef.current.set(ask.price, { base: ask.token0Amount, quote: ask.token0Amount * ask.price });
+            });
+          }
+
+          setDepthData(newData);
+          setSimpleData(null);
+          setLastUpdated(new Date());
+          // Reset trade adjustments when fresh API data arrives
+          setTradeAdjustments({ askConsumed: 0, bidConsumed: 0 });
+          lastApiUpdateRef.current = Date.now();
+        } else if (result.type === 'simple') {
+          setSimpleData(result.data);
+          setDepthData(null);
+          setLastUpdated(new Date());
+        } else {
+          setError('Unknown response type');
+        }
+      } catch (err) {
+        console.error('Liquidity fetch error:', err);
+        // Don't set error on refresh failures, keep showing old data
+        if (isInitialLoad.current) {
+          if (err instanceof Error && err.name === 'AbortError') {
+            setError('请求超时 - RPC 响应太慢');
+          } else {
+            setError('获取流动性数据失败');
+          }
+        }
+      } finally {
+        setIsRefreshing(false);
+        isFetchingRef.current = false;
+      }
+
+      if (isInitialLoad.current) {
+        setLoading(false);
+        isInitialLoad.current = false;
+      }
+    };
+
+    if (chainId !== 'solana') {
+      fetchData();
+      // Update every 1 second for real-time feel (like Binance)
+      const interval = setInterval(fetchData, 1000);
+      return () => clearInterval(interval);
+    } else {
+      setError('Solana not supported yet');
+      setLoading(false);
+    }
+  }, [chainId, poolAddress, priceUsd, baseTokenAddress, quoteTokenAddress]); // priceRange removed - filter client-side
+
+  // Calculate dynamic precision options based on current price
+  const getPrecisionOptions = (price: number): number[] => {
+    if (!price || price <= 0) return [0.0001, 0.001, 0.01];
+
+    // Find the order of magnitude of the price
+    const magnitude = Math.floor(Math.log10(price));
+
+    // Generate 3 precision levels around the price's magnitude
+    // Fine (1/100 of price), Medium (1/10 of price), Coarse (same magnitude)
+    const base = Math.pow(10, magnitude - 2);
+    return [
+      Number(base.toPrecision(1)),
+      Number((base * 10).toPrecision(1)),
+      Number((base * 100).toPrecision(1))
+    ];
+  };
+
+  const precisionOptions = depthData?.currentPrice ? getPrecisionOptions(depthData.currentPrice) : [0.0001, 0.001, 0.01];
+  const safeIndex = Math.min(precisionIndex, precisionOptions.length - 1);
+  const currentPrecision = precisionOptions[safeIndex] || 0.001;
+
+  // Aggregate depth data by price precision (like Binance/Gate)
+  const getFilteredData = () => {
+    if (!depthData) return null;
+
+    const precision = currentPrecision || 0.001;
+    if (precision <= 0 || !isFinite(precision)) return depthData; // Safety fallback
+
+    // Round price to precision level
+    const roundToLevel = (price: number) => {
+      if (!price || !isFinite(price)) return 0;
+      return Math.round(price / precision) * precision;
+    };
+
+    // Aggregate bids by price level
+    const bidMap = new Map<number, { token0Amount: number; token1Amount: number; liquidityUSD: number }>();
+    for (const bid of depthData.bids) {
+      const level = roundToLevel(bid.price);
+      const existing = bidMap.get(level) || { token0Amount: 0, token1Amount: 0, liquidityUSD: 0 };
+      existing.token0Amount += bid.token0Amount;
+      existing.token1Amount += bid.token1Amount;
+      existing.liquidityUSD += bid.liquidityUSD;
+      bidMap.set(level, existing);
+    }
+
+    // Aggregate asks by price level
+    const askMap = new Map<number, { token0Amount: number; token1Amount: number; liquidityUSD: number }>();
+    for (const ask of depthData.asks) {
+      const level = roundToLevel(ask.price);
+      const existing = askMap.get(level) || { token0Amount: 0, token1Amount: 0, liquidityUSD: 0 };
+      existing.token0Amount += ask.token0Amount;
+      existing.token1Amount += ask.token1Amount;
+      existing.liquidityUSD += ask.liquidityUSD;
+      askMap.set(level, existing);
+    }
+
+    // Convert back to array format
+    const aggregatedBids = Array.from(bidMap.entries())
+      .map(([price, data]) => ({ price, ...data }))
+      .sort((a, b) => b.price - a.price); // Descending
+
+    const aggregatedAsks = Array.from(askMap.entries())
+      .map(([price, data]) => ({ price, ...data }))
+      .sort((a, b) => a.price - b.price); // Ascending
+
+    return { ...depthData, bids: aggregatedBids, asks: aggregatedAsks };
+  };
+
+  // Get highlight class for changed values
+  const getHighlightClass = (type: 'bid' | 'ask', price: number, field: 'base' | 'quote'): string => {
+    const key = `${type}-${price.toFixed(8)}-${field}`;
+    const change = changedValues.get(key);
+    if (!change) return '';
+    return change.direction === 'up'
+      ? 'animate-flash-green'
+      : 'animate-flash-red';
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 bg-[#161b22] rounded-lg border border-[#30363d]">
+        <div className="text-center text-gray-400 animate-pulse">Loading liquidity data...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    // Show DexScreener liquidity as fallback
+    if (liquidityUsd && liquidityUsd > 0) {
+      return (
+        <div className="bg-[#161b22] rounded-lg border border-[#30363d] p-4">
+          <div className="text-sm font-medium mb-3">Pool Liquidity</div>
+          <div className="text-center py-4">
+            <div className="text-2xl font-bold text-white">${formatNumber(liquidityUsd)}</div>
+            <div className="text-xs text-gray-400 mt-1">Total Liquidity (USD)</div>
+          </div>
+          <div className="text-xs text-gray-500 text-center mt-2 border-t border-[#30363d] pt-2">
+            {baseSymbol}/{quoteSymbol}
+          </div>
+          <div className="text-xs text-gray-600 text-center mt-1">
+            On-chain depth data unavailable
+          </div>
+        </div>
+      );
+    }
+    return (
+      <div className="p-4 bg-[#161b22] rounded-lg border border-[#30363d]">
+        <div className="text-center text-gray-500 text-sm">{error}</div>
+      </div>
+    );
+  }
+
+  // V3/V4 Depth Chart
+  const filteredData = getFilteredData();
+  if (filteredData) {
+    const maxBidLiquidity = Math.max(...filteredData.bids.map(b => b.liquidityUSD), 1);
+    const maxAskLiquidity = Math.max(...filteredData.asks.map(a => a.liquidityUSD), 1);
+    const maxLiquidity = Math.max(maxBidLiquidity, maxAskLiquidity);
+
+    return (
+      <div className="bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden h-full flex flex-col">
+        {/* Header Row 1: Title */}
+        <div className="px-3 py-2 border-b border-[#30363d] flex-shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Order Book</span>
+              {/* Live indicator */}
+              <span className={`flex items-center gap-1 text-xs ${isRefreshing ? 'text-yellow-500' : 'text-green-500'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${isRefreshing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
+                {isRefreshing ? 'Updating...' : 'Live'}
+              </span>
+            </div>
+            {/* Precision Selector - dynamic based on price */}
+            <div className="flex items-center gap-1 bg-[#21262d] rounded p-0.5">
+              {precisionOptions.map((precision, idx) => (
+                <button
+                  key={precision}
+                  onClick={() => setPrecisionIndex(idx)}
+                  className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                    precisionIndex === idx
+                      ? 'bg-[#30363d] text-white'
+                      : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  {formatPrecision(precision)}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Row 2: View Mode Toggle */}
+          <div className="flex items-center gap-1 bg-[#21262d] rounded p-0.5 w-fit">
+            <button
+              onClick={() => setViewMode('individual')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${
+                viewMode === 'individual'
+                  ? 'bg-[#30363d] text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Single
+            </button>
+            <button
+              onClick={() => setViewMode('cumulative')}
+              className={`px-3 py-1 text-xs rounded transition-colors ${
+                viewMode === 'cumulative'
+                  ? 'bg-[#30363d] text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Total
+            </button>
+          </div>
+        </div>
+
+        <div className="p-2 flex-1 flex flex-col min-h-0">
+          {/* Header */}
+          <div className="grid grid-cols-3 text-xs text-gray-400 px-2 mb-1 flex-shrink-0">
+            <span>Price</span>
+            <span className="text-center">{filteredData.token0Symbol}</span>
+            <span className="text-right">USD</span>
+          </div>
+
+          {/* Asks (sell side) - above current price - scrollable */}
+          <div className="flex-1 overflow-y-auto space-y-0.5 mb-2 scrollbar-thin min-h-0">
+            {filteredData.asks.length === 0 ? (
+              <div className="text-xs text-gray-500 text-center py-2">No asks in range</div>
+            ) : (
+              (() => {
+                const asksToShow = filteredData.asks;
+                // Apply trade consumption - reduce from levels closest to current price
+                let remainingConsumed = tradeAdjustments.askConsumed;
+                const adjustedAsks = asksToShow.map((level) => {
+                  if (remainingConsumed > 0) {
+                    const consumed = Math.min(remainingConsumed, level.liquidityUSD);
+                    remainingConsumed -= consumed;
+                    const consumptionRatio = (level.liquidityUSD - consumed) / Math.max(level.liquidityUSD, 0.001);
+                    return {
+                      ...level,
+                      token0Amount: level.token0Amount * consumptionRatio,
+                      liquidityUSD: Math.max(0, level.liquidityUSD - consumed),
+                    };
+                  }
+                  return level;
+                });
+
+                // Calculate cumulative values (from lowest price upward)
+                let cumBaseAmount = 0;
+                let cumQuoteAmount = 0;
+                let cumLiquidityUSD = 0;
+                const asksWithCumulative = adjustedAsks.map((level) => {
+                  const baseAmount = level.token0Amount;
+                  const quoteAmount = baseAmount * level.price;
+                  cumBaseAmount += baseAmount;
+                  cumQuoteAmount += quoteAmount;
+                  cumLiquidityUSD += level.liquidityUSD;
+                  return {
+                    ...level,
+                    baseAmount,
+                    quoteAmount,
+                    cumBaseAmount,
+                    cumQuoteAmount,
+                    cumLiquidityUSD,
+                  };
+                });
+                const maxCumLiquidity = viewMode === 'cumulative' ? asksWithCumulative[asksWithCumulative.length - 1]?.cumLiquidityUSD || 1 : maxLiquidity;
+
+                return asksWithCumulative.reverse().map((level, i) => {
+                  const displayBase = viewMode === 'cumulative' ? level.cumBaseAmount : level.baseAmount;
+                  const displayQuote = viewMode === 'cumulative' ? level.cumQuoteAmount : level.quoteAmount;
+                  const displayUsd = viewMode === 'cumulative' ? level.cumLiquidityUSD : level.liquidityUSD;
+                  const priceInUsd = level.price; // Already in USD from API (calculated using priceUsd param)
+                  const displayLiquidity = viewMode === 'cumulative' ? level.cumLiquidityUSD : level.liquidityUSD;
+                  const baseHighlight = getHighlightClass('ask', level.price, 'base');
+                  const quoteHighlight = getHighlightClass('ask', level.price, 'quote');
+                  return (
+                    <div key={`ask-${i}`} className="relative">
+                      <div
+                        className="absolute right-0 top-0 bottom-0 bg-[#f85149]/20"
+                        style={{ width: `${(displayLiquidity / maxCumLiquidity) * 100}%` }}
+                      />
+                      <div className="relative grid grid-cols-3 text-xs px-2 py-0.5">
+                        <span className="text-[#f85149]">${formatPrice(priceInUsd)}</span>
+                        <span className={`text-center ${baseHighlight}`}>{formatNumber(displayBase)}</span>
+                        <span className={`text-right ${quoteHighlight}`}>${formatNumber(displayUsd)}</span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()
+            )}
+          </div>
+
+          {/* Current Price with Trade Flow */}
+          <div className="bg-[#30363d] px-2 py-1 my-1 flex-shrink-0">
+            <div className="flex items-center justify-center gap-2">
+              <span className="text-white text-sm font-medium">${formatNumber(priceUsd)}</span>
+              <span className="text-gray-400 text-xs">Current</span>
+            </div>
+            {/* Recent trade indicator */}
+            {recentTrades.length > 0 && (
+              <div className="flex items-center justify-center gap-2 mt-1">
+                {recentTrades.slice(0, 3).map((trade, i) => (
+                  <span
+                    key={trade.timestamp + i}
+                    className={`text-xs px-1.5 py-0.5 rounded ${
+                      trade.type === 'buy'
+                        ? 'bg-[#3fb950]/20 text-[#3fb950]'
+                        : 'bg-[#f85149]/20 text-[#f85149]'
+                    } animate-pulse`}
+                  >
+                    {trade.type === 'buy' ? '↑' : '↓'} ${formatNumber(trade.estimatedVolumeUsd)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Bids (buy side) - below current price - scrollable */}
+          <div className="flex-1 overflow-y-auto space-y-0.5 mt-2 scrollbar-thin min-h-0">
+            {filteredData.bids.length === 0 ? (
+              <div className="text-xs text-gray-500 text-center py-2">No bids in range</div>
+            ) : (
+              (() => {
+                const bidsToShow = filteredData.bids;
+                // Apply trade consumption - reduce from levels closest to current price
+                let remainingConsumed = tradeAdjustments.bidConsumed;
+                const adjustedBids = bidsToShow.map((level) => {
+                  if (remainingConsumed > 0) {
+                    const consumed = Math.min(remainingConsumed, level.liquidityUSD);
+                    remainingConsumed -= consumed;
+                    const consumptionRatio = (level.liquidityUSD - consumed) / Math.max(level.liquidityUSD, 0.001);
+                    return {
+                      ...level,
+                      token1Amount: level.token1Amount * consumptionRatio,
+                      liquidityUSD: Math.max(0, level.liquidityUSD - consumed),
+                    };
+                  }
+                  return level;
+                });
+
+                // Calculate cumulative values (from highest price downward)
+                let cumBaseAmount = 0;
+                let cumQuoteAmount = 0;
+                let cumLiquidityUSD = 0;
+                const bidsWithCumulative = adjustedBids.map((level) => {
+                  const quoteAmount = level.token1Amount;
+                  const baseAmount = level.price > 0 ? quoteAmount / level.price : 0;
+                  cumBaseAmount += baseAmount;
+                  cumQuoteAmount += quoteAmount;
+                  cumLiquidityUSD += level.liquidityUSD;
+                  return {
+                    ...level,
+                    baseAmount,
+                    quoteAmount,
+                    cumBaseAmount,
+                    cumQuoteAmount,
+                    cumLiquidityUSD,
+                  };
+                });
+                const maxCumLiquidity = viewMode === 'cumulative' ? bidsWithCumulative[bidsWithCumulative.length - 1]?.cumLiquidityUSD || 1 : maxLiquidity;
+
+                return bidsWithCumulative.map((level, i) => {
+                  const displayBase = viewMode === 'cumulative' ? level.cumBaseAmount : level.baseAmount;
+                  const displayQuote = viewMode === 'cumulative' ? level.cumQuoteAmount : level.quoteAmount;
+                  const displayUsd = viewMode === 'cumulative' ? level.cumLiquidityUSD : level.liquidityUSD;
+                  const priceInUsd = level.price; // Already in USD from API (calculated using priceUsd param)
+                  const displayLiquidity = viewMode === 'cumulative' ? level.cumLiquidityUSD : level.liquidityUSD;
+                  const baseHighlight = getHighlightClass('bid', level.price, 'base');
+                  const quoteHighlight = getHighlightClass('bid', level.price, 'quote');
+                  return (
+                    <div key={`bid-${i}`} className="relative">
+                      <div
+                        className="absolute left-0 top-0 bottom-0 bg-[#3fb950]/20"
+                        style={{ width: `${(displayLiquidity / maxCumLiquidity) * 100}%` }}
+                      />
+                      <div className="relative grid grid-cols-3 text-xs px-2 py-0.5">
+                        <span className="text-[#3fb950]">${formatPrice(priceInUsd)}</span>
+                        <span className={`text-center ${baseHighlight}`}>{formatNumber(displayBase)}</span>
+                        <span className={`text-right ${quoteHighlight}`}>${formatNumber(displayUsd)}</span>
+                      </div>
+                    </div>
+                  );
+                });
+              })()
+            )}
+          </div>
+
+          {/* Summary */}
+          <div className="mt-2 pt-2 border-t border-[#30363d] text-xs text-gray-400 px-2 space-y-1 flex-shrink-0">
+            <div className="flex justify-between">
+              <span>{filteredData.token0Symbol}/{filteredData.token1Symbol}</span>
+              <span>
+                {filteredData.bids.length} bids / {filteredData.asks.length} asks
+              </span>
+            </div>
+            {/* Pool Reserves - from DexScreener */}
+            {(liquidityBase || liquidityQuote) && (
+              <>
+                <div className="flex justify-between border-t border-[#21262d] pt-1 mt-1">
+                  <span className="text-gray-500">Pool Reserves</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#f85149]">{baseSymbol}</span>
+                  <span className="text-[#f85149]">{formatNumber(liquidityBase || 0)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#3fb950]">{quoteSymbol}</span>
+                  <span className="text-[#3fb950]">{formatNumber(liquidityQuote || 0)}</span>
+                </div>
+              </>
+            )}
+            {!isStablecoin(quoteSymbol) && quoteTokenUsdPrice > 0 && (
+              <div className="flex justify-between text-gray-500">
+                <span>1 {quoteSymbol} =</span>
+                <span className="text-[#58a6ff]">${formatNumber(quoteTokenUsdPrice)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Simple Liquidity Display
+  if (simpleData) {
+    const total = simpleData.token0 * priceUsd + simpleData.token1;
+    const token0Pct = (simpleData.token0 * priceUsd / total) * 100 || 50;
+
+    return (
+      <div className="bg-[#161b22] rounded-lg border border-[#30363d] p-4">
+        <div className="text-sm font-medium mb-3">Pool Liquidity</div>
+
+        {/* Liquidity Bar */}
+        <div className="h-6 rounded-full overflow-hidden flex mb-3">
+          <div
+            className="bg-[#3fb950] flex items-center justify-center text-xs font-medium"
+            style={{ width: `${token0Pct}%` }}
+          >
+            {token0Pct > 15 && `${token0Pct.toFixed(0)}%`}
+          </div>
+          <div
+            className="bg-[#58a6ff] flex items-center justify-center text-xs font-medium"
+            style={{ width: `${100 - token0Pct}%` }}
+          >
+            {(100 - token0Pct) > 15 && `${(100 - token0Pct).toFixed(0)}%`}
+          </div>
+        </div>
+
+        {/* Token amounts */}
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-[#3fb950]" />
+              <span>{simpleData.token0Symbol}</span>
+            </div>
+            <span className="font-mono">{formatNumber(simpleData.token0)}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-[#58a6ff]" />
+              <span>{simpleData.token1Symbol}</span>
+            </div>
+            <span className="font-mono">{formatNumber(simpleData.token1)}</span>
+          </div>
+          <div className="pt-2 border-t border-[#30363d] flex justify-between">
+            <span className="text-gray-400">Total Value</span>
+            <span className="font-medium">${formatNumber(total)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
+
+function formatPrice(price: number): string {
+  if (price >= 1000) return price.toLocaleString('en-US', { maximumFractionDigits: 2 });
+  if (price >= 1) return price.toFixed(4);
+  if (price >= 0.0001) return price.toFixed(8);
+  return price.toExponential(4);
+}
+
+function formatPrecision(precision: number): string {
+  if (precision >= 1) return precision.toFixed(0);
+  // Count decimal places needed
+  const str = precision.toString();
+  if (str.includes('e')) {
+    // Handle scientific notation like 1e-5
+    const exp = parseInt(str.split('e')[1]);
+    return precision.toFixed(Math.abs(exp));
+  }
+  const decimals = str.split('.')[1]?.length || 0;
+  return precision.toFixed(decimals);
+}
