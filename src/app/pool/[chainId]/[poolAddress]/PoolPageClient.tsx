@@ -33,10 +33,6 @@ const LiquidityDepth = dynamic(() => import('@/components/LiquidityDepth'), {
   ),
 });
 
-const LiquidityInfo = dynamic(() => import('@/components/LiquidityInfo'), {
-  ssr: false,
-});
-
 const TradeHistory = dynamic(() => import('@/components/TradeHistory'), {
   ssr: false,
   loading: () => (
@@ -198,9 +194,9 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
         </div>
       </div>
 
-      {/* Main content: Chart + Liquidity + Info */}
+      {/* Main content: Chart + Trade History + Order Book */}
       <main className="flex-1 p-2 flex flex-col md:flex-row gap-2 overflow-auto">
-        {/* Left: Chart + LP Info stacked - scrollable */}
+        {/* Left: Chart + Trade History stacked */}
         <div className="flex-1 flex flex-col gap-2 min-w-0">
           {/* Chart - responsive height: smaller on mobile, larger on desktop */}
           <div className="h-[300px] sm:h-[400px] md:h-[500px] bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden flex-shrink-0">
@@ -212,26 +208,21 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
             />
           </div>
 
-          {/* LP Positions - full content, scroll to see all */}
-          <div className="flex-shrink-0">
-            <LiquidityInfo
-              selectedLevel={null}
-              currentPrice={pool.priceUsd}
-              totalBidLiquidity={0}
-              totalAskLiquidity={0}
-              token0Symbol={pool.baseToken.symbol}
-              token1Symbol={pool.quoteToken.symbol}
+          {/* Trade History - below chart */}
+          <div className="h-[250px] sm:h-[300px] md:flex-1 md:min-h-[300px]">
+            <TradeHistory
               chainId={pool.chainId}
               poolAddress={pool.poolAddress}
-              onClose={() => {}}
+              baseSymbol={pool.baseToken.symbol}
+              priceUsd={pool.priceUsd}
             />
           </div>
         </div>
 
-        {/* Right: Order Book + Trade History - sticky on desktop, stacked on mobile */}
-        <div className="flex flex-col sm:flex-row md:flex-row gap-2 flex-shrink-0 md:sticky md:top-0 md:self-start md:h-[calc(100vh-140px)]">
+        {/* Right: Order Book only - sticky on desktop */}
+        <div className="flex-shrink-0 md:sticky md:top-0 md:self-start md:h-[calc(100vh-140px)]">
           {/* Order Book */}
-          <div className="w-full sm:w-64 h-[300px] sm:h-[400px] md:h-full">
+          <div className="w-full sm:w-64 md:w-72 h-[300px] sm:h-[400px] md:h-full">
             <LiquidityDepth
               chainId={pool.chainId}
               poolAddress={pool.poolAddress}
@@ -243,15 +234,6 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
               liquidityQuote={pool.liquidityQuote}
               baseTokenAddress={pool.baseToken.address}
               quoteTokenAddress={pool.quoteToken.address}
-            />
-          </div>
-          {/* Trade History */}
-          <div className="w-full sm:w-72 h-[300px] sm:h-[400px] md:h-full">
-            <TradeHistory
-              chainId={pool.chainId}
-              poolAddress={pool.poolAddress}
-              baseSymbol={pool.baseToken.symbol}
-              priceUsd={pool.priceUsd}
             />
           </div>
         </div>
