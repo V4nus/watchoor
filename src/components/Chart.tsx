@@ -59,14 +59,28 @@ export default function Chart({
   const [isLive, setIsLive] = useState(false);
   const scaleMenuRef = useRef<HTMLDivElement>(null);
   const [showTradeEffect, setShowTradeEffect] = useState<'buy' | 'sell' | null>(null);
+  const [tradeEffectY, setTradeEffectY] = useState<number | null>(null);
 
   // Handle trade effect trigger from parent
   useEffect(() => {
     if (tradeEffect) {
+      // Get current price Y coordinate from chart
+      const candleSeries = candleSeriesRef.current;
+      const lastBar = lastBarRef.current;
+
+      if (candleSeries && lastBar) {
+        // Get Y coordinate for current price
+        const yCoord = candleSeries.priceToCoordinate(lastBar.close);
+        if (yCoord !== null) {
+          setTradeEffectY(yCoord);
+        }
+      }
+
       setShowTradeEffect(tradeEffect);
       // Auto-clear effect after animation completes
       const timer = setTimeout(() => {
         setShowTradeEffect(null);
+        setTradeEffectY(null);
         onTradeEffectComplete?.();
       }, 2500);
       return () => clearTimeout(timer);
@@ -336,15 +350,21 @@ export default function Chart({
         {/* Trade Effect Overlay */}
         {showTradeEffect && (
           <>
-            {/* Buy Effect: Green light beam crossing from right to left */}
+            {/* Buy Effect: Green light beam crossing from right to left at current price */}
             {showTradeEffect === 'buy' && (
               <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                {/* Main beam */}
-                <div className="absolute top-1/2 -translate-y-1/2 w-full h-1 animate-buy-beam">
+                {/* Main beam - positioned at current price Y coordinate */}
+                <div
+                  className="absolute w-full h-1 animate-buy-beam"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', transform: tradeEffectY !== null ? 'translateY(-50%)' : 'translateY(-50%)' }}
+                >
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#3fb950] to-transparent shadow-[0_0_20px_#3fb950,0_0_40px_#3fb950,0_0_60px_#3fb950]" />
                 </div>
                 {/* Glow trail */}
-                <div className="absolute top-1/2 -translate-y-1/2 w-full h-8 animate-buy-beam opacity-30">
+                <div
+                  className="absolute w-full h-8 animate-buy-beam opacity-30"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', transform: tradeEffectY !== null ? 'translateY(-50%)' : 'translateY(-50%)' }}
+                >
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#3fb950] to-transparent blur-xl" />
                 </div>
                 {/* Vertical scanlines for effect */}
@@ -354,15 +374,21 @@ export default function Chart({
               </div>
             )}
 
-            {/* Sell Effect: Red light beam from center going downward */}
+            {/* Sell Effect: Red light beam from current price going downward */}
             {showTradeEffect === 'sell' && (
               <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                {/* Vertical beam */}
-                <div className="absolute left-1/2 -translate-x-1/2 top-1/2 w-1 h-full animate-sell-beam">
+                {/* Vertical beam - starts at current price Y coordinate */}
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 w-1 h-full animate-sell-beam"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
+                >
                   <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#f85149] to-transparent shadow-[0_0_20px_#f85149,0_0_40px_#f85149,0_0_60px_#f85149]" />
                 </div>
                 {/* Glow trail */}
-                <div className="absolute left-1/2 -translate-x-1/2 top-1/2 w-8 h-full animate-sell-beam opacity-30">
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 w-8 h-full animate-sell-beam opacity-30"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
+                >
                   <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#f85149] to-transparent blur-xl" />
                 </div>
                 {/* Horizontal scanlines for effect */}
@@ -376,7 +402,7 @@ export default function Chart({
             <style jsx>{`
               @keyframes buy-beam {
                 0% {
-                  transform: translateX(100%) translateY(-50%);
+                  transform: translateX(100%);
                   opacity: 0;
                 }
                 10% {
@@ -386,7 +412,7 @@ export default function Chart({
                   opacity: 1;
                 }
                 100% {
-                  transform: translateX(-100%) translateY(-50%);
+                  transform: translateX(-100%);
                   opacity: 0;
                 }
               }
@@ -400,7 +426,7 @@ export default function Chart({
               }
               @keyframes sell-beam {
                 0% {
-                  transform: translateX(-50%) translateY(-50%);
+                  transform: translateY(0%);
                   opacity: 0;
                 }
                 10% {
@@ -410,7 +436,7 @@ export default function Chart({
                   opacity: 1;
                 }
                 100% {
-                  transform: translateX(-50%) translateY(100%);
+                  transform: translateY(100%);
                   opacity: 0;
                 }
               }
