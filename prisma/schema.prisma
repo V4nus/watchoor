@@ -90,8 +90,28 @@ model SyncStatus {
   chainId     String
   poolAddress String
   lastBlock   Int
-  syncType    String   // 'lp_positions', 'liquidity'
+  syncType    String   // 'lp_positions', 'liquidity', 'v4_trades'
   updatedAt   DateTime @updatedAt
 
   @@unique([chainId, poolAddress, syncType])
+}
+
+// V4 Pool trades (cached from on-chain events)
+model V4Trade {
+  id          String   @id @default(cuid())
+  chainId     String
+  poolId      String   // V4 pool ID (bytes32)
+  txHash      String
+  type        String   // 'buy' or 'sell'
+  price       Float
+  amount      Float    // base token amount
+  volumeUsd   Float    // USD volume
+  blockNumber Int
+  timestamp   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([chainId, poolId, txHash])
+  @@index([chainId, poolId])
+  @@index([blockNumber])
+  @@index([timestamp])
 }

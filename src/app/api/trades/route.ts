@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, parseAbi, formatUnits } from 'viem';
+import { createPublicClient, http } from 'viem';
 import { base, mainnet, bsc, arbitrum, polygon } from 'viem/chains';
+import { prisma } from '@/lib/db';
 
 export interface Trade {
   txHash: string;
@@ -63,10 +64,8 @@ const V4_POOL_MANAGER: Record<string, string> = {
   bsc: '0x28e2Ea090877bF75740558f6BFB36A5ffeE9e9dF',
 };
 
-const ERC20_ABI = parseAbi([
-  'function decimals() view returns (uint8)',
-  'function symbol() view returns (string)',
-]);
+// Cache duration: only fetch new trades if last sync was more than 10 seconds ago
+const CACHE_DURATION_MS = 10000;
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -84,9 +83,9 @@ export async function GET(request: NextRequest) {
   try {
     const network = NETWORK_MAP[chainId] || chainId;
 
-    // For V4 pools (66 char poolId), fetch from PoolManager Swap events
+    // For V4 pools (66 char poolId), use database cache
     if (poolAddress.length === 66) {
-      const v4Trades = await getV4Trades(chainId, poolAddress, limit);
+      const v4Trades = await getV4TradesWithCache(chainId, poolAddress, limit);
       return NextResponse.json({
         success: true,
         data: v4Trades,
@@ -157,12 +156,85 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Fetch V4 trades from PoolManager Swap events
-async function getV4Trades(
+// Get V4 trades with database caching
+async function getV4TradesWithCache(
   chainId: string,
   poolId: string,
   limit: number
 ): Promise<Trade[]> {
+  try {
+    // Check last sync time
+    const syncStatus = await prisma.syncStatus.findUnique({
+      where: {
+        chainId_poolAddress_syncType: {
+          chainId,
+          poolAddress: poolId,
+          syncType: 'v4_trades',
+        },
+      },
+    });
+
+    const now = new Date();
+    const shouldFetchNew = !syncStatus ||
+      (now.getTime() - syncStatus.updatedAt.getTime() > CACHE_DURATION_MS);
+
+    // Fetch new trades from chain if cache is stale
+    if (shouldFetchNew) {
+      const lastBlock = syncStatus?.lastBlock || 0;
+      await fetchAndCacheV4Trades(chainId, poolId, lastBlock);
+    }
+
+    // Return cached trades from database
+    const cachedTrades = await prisma.v4Trade.findMany({
+      where: {
+        chainId,
+        poolId,
+      },
+      orderBy: {
+        blockNumber: 'desc',
+      },
+      take: limit,
+    });
+
+    return cachedTrades.map(t => ({
+      txHash: t.txHash,
+      type: t.type as 'buy' | 'sell',
+      price: t.price,
+      amount: t.amount,
+      volumeUsd: t.volumeUsd,
+      timestamp: t.timestamp.toISOString(),
+      blockNumber: t.blockNumber,
+    }));
+  } catch (error) {
+    console.error('Error getting V4 trades with cache:', error);
+    // Fallback: try to return whatever is in the cache
+    try {
+      const cachedTrades = await prisma.v4Trade.findMany({
+        where: { chainId, poolId },
+        orderBy: { blockNumber: 'desc' },
+        take: limit,
+      });
+      return cachedTrades.map(t => ({
+        txHash: t.txHash,
+        type: t.type as 'buy' | 'sell',
+        price: t.price,
+        amount: t.amount,
+        volumeUsd: t.volumeUsd,
+        timestamp: t.timestamp.toISOString(),
+        blockNumber: t.blockNumber,
+      }));
+    } catch {
+      return [];
+    }
+  }
+}
+
+// Fetch new trades from chain and cache them
+async function fetchAndCacheV4Trades(
+  chainId: string,
+  poolId: string,
+  lastSyncedBlock: number
+): Promise<void> {
   try {
     const chain = CHAINS[chainId];
     const rpcUrl = RPC_URLS[chainId];
@@ -170,7 +242,7 @@ async function getV4Trades(
 
     if (!chain || !rpcUrl || !poolManagerAddr) {
       console.error('V4 not supported on chain:', chainId);
-      return [];
+      return;
     }
 
     const client = createPublicClient({
@@ -181,14 +253,19 @@ async function getV4Trades(
     // Get current block number
     const currentBlock = await client.getBlockNumber();
 
-    // Query from last 10000 blocks (roughly a few hours depending on chain)
-    const blocksToQuery = 10000n;
-    const startBlock = currentBlock - blocksToQuery;
+    // If first sync, query last 10000 blocks; otherwise query from last synced block
+    const startBlock = lastSyncedBlock > 0
+      ? BigInt(lastSyncedBlock + 1)
+      : currentBlock - 10000n;
+
+    // Don't query if we're already up to date
+    if (startBlock > currentBlock) {
+      return;
+    }
 
     console.log(`Fetching V4 Swap events for pool ${poolId.slice(0, 10)}... from block ${startBlock}`);
 
     // Fetch Swap events from PoolManager
-    // Swap(bytes32 indexed id, address indexed sender, int128 amount0, int128 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick, uint24 fee)
     const logs = await client.getLogs({
       address: poolManagerAddr as `0x${string}`,
       event: {
@@ -212,74 +289,116 @@ async function getV4Trades(
       toBlock: currentBlock,
     });
 
-    console.log(`Found ${logs.length} V4 Swap events`);
+    console.log(`Found ${logs.length} new V4 Swap events`);
 
-    if (logs.length === 0) {
-      return [];
-    }
+    if (logs.length > 0) {
+      // Get block timestamps in batches
+      const uniqueBlocks = [...new Set(logs.map(log => log.blockNumber))];
+      const blockTimestamps = new Map<bigint, number>();
 
-    // Get block timestamps in batches
-    const uniqueBlocks = [...new Set(logs.map(log => log.blockNumber))];
-    const blockTimestamps = new Map<bigint, number>();
+      const batchSize = 10;
+      for (let i = 0; i < Math.min(uniqueBlocks.length, 50); i += batchSize) {
+        const batch = uniqueBlocks.slice(i, i + batchSize);
+        const blocks = await Promise.all(
+          batch.map(blockNum => client.getBlock({ blockNumber: blockNum }))
+        );
+        blocks.forEach((block, idx) => {
+          blockTimestamps.set(batch[idx], Number(block.timestamp));
+        });
+      }
 
-    // Fetch timestamps in parallel batches of 10
-    const batchSize = 10;
-    for (let i = 0; i < Math.min(uniqueBlocks.length, 50); i += batchSize) {
-      const batch = uniqueBlocks.slice(i, i + batchSize);
-      const blocks = await Promise.all(
-        batch.map(blockNum => client.getBlock({ blockNumber: blockNum }))
-      );
-      blocks.forEach((block, idx) => {
-        blockTimestamps.set(batch[idx], Number(block.timestamp));
+      // Parse and save trades
+      const tradesToSave = logs.map(log => {
+        const args = log.args as {
+          id: `0x${string}`;
+          sender: `0x${string}`;
+          amount0: bigint;
+          amount1: bigint;
+          sqrtPriceX96: bigint;
+          liquidity: bigint;
+          tick: number;
+          fee: number;
+        };
+
+        const isBuy = args.amount0 > 0n;
+        const usdcAmount = Math.abs(Number(args.amount0)) / 1e6;
+        const baseAmount = Math.abs(Number(args.amount1)) / 1e18;
+        const price = baseAmount > 0 ? usdcAmount / baseAmount : 0;
+        const timestamp = blockTimestamps.get(log.blockNumber) || Math.floor(Date.now() / 1000);
+
+        return {
+          chainId,
+          poolId,
+          txHash: log.transactionHash,
+          type: isBuy ? 'buy' : 'sell',
+          price,
+          amount: baseAmount,
+          volumeUsd: usdcAmount,
+          blockNumber: Number(log.blockNumber),
+          timestamp: new Date(timestamp * 1000),
+        };
       });
+
+      // Upsert trades (skip duplicates)
+      for (const trade of tradesToSave) {
+        await prisma.v4Trade.upsert({
+          where: {
+            chainId_poolId_txHash: {
+              chainId: trade.chainId,
+              poolId: trade.poolId,
+              txHash: trade.txHash,
+            },
+          },
+          update: {}, // Don't update if exists
+          create: trade,
+        });
+      }
     }
 
-    // Parse events into Trade format
-    // For V4 pools: amount0 is USDC (6 decimals), amount1 is the other token
-    // Positive amount means tokens going INTO the pool (from swapper)
-    // Negative amount means tokens going OUT of the pool (to swapper)
-    const trades: Trade[] = logs.slice(-limit).map(log => {
-      const args = log.args as {
-        id: `0x${string}`;
-        sender: `0x${string}`;
-        amount0: bigint;
-        amount1: bigint;
-        sqrtPriceX96: bigint;
-        liquidity: bigint;
-        tick: number;
-        fee: number;
-      };
-
-      // amount0 is usually USDC (quote), amount1 is the base token (e.g., PING)
-      // If amount0 > 0 (USDC going in), user is buying base token -> BUY
-      // If amount0 < 0 (USDC going out), user is selling base token -> SELL
-      const isBuy = args.amount0 > 0n;
-
-      // Calculate amounts (USDC is 6 decimals, assume base token is 18 decimals for PING)
-      const usdcAmount = Math.abs(Number(args.amount0)) / 1e6;
-      const baseAmount = Math.abs(Number(args.amount1)) / 1e18;
-
-      // Calculate price directly from trade amounts (more reliable than sqrtPriceX96)
-      // Price = USDC amount / Token amount
-      const price = baseAmount > 0 ? usdcAmount / baseAmount : 0;
-
-      const timestamp = blockTimestamps.get(log.blockNumber) || Math.floor(Date.now() / 1000);
-
-      return {
-        txHash: log.transactionHash,
-        type: isBuy ? 'buy' : 'sell',
-        price: price,
-        amount: baseAmount,
-        volumeUsd: usdcAmount,
-        timestamp: new Date(timestamp * 1000).toISOString(),
-        blockNumber: Number(log.blockNumber),
-      };
+    // Update sync status
+    await prisma.syncStatus.upsert({
+      where: {
+        chainId_poolAddress_syncType: {
+          chainId,
+          poolAddress: poolId,
+          syncType: 'v4_trades',
+        },
+      },
+      update: {
+        lastBlock: Number(currentBlock),
+        updatedAt: new Date(),
+      },
+      create: {
+        chainId,
+        poolAddress: poolId,
+        syncType: 'v4_trades',
+        lastBlock: Number(currentBlock),
+      },
     });
 
-    // Sort by block number descending (newest first) and return
-    return trades.sort((a, b) => b.blockNumber - a.blockNumber);
+    // Clean up old trades (keep only last 500)
+    const tradeCount = await prisma.v4Trade.count({
+      where: { chainId, poolId },
+    });
+
+    if (tradeCount > 500) {
+      const oldTrades = await prisma.v4Trade.findMany({
+        where: { chainId, poolId },
+        orderBy: { blockNumber: 'desc' },
+        skip: 500,
+        select: { id: true },
+      });
+
+      if (oldTrades.length > 0) {
+        await prisma.v4Trade.deleteMany({
+          where: {
+            id: { in: oldTrades.map(t => t.id) },
+          },
+        });
+      }
+    }
   } catch (error) {
-    console.error('Error fetching V4 trades:', error);
-    return [];
+    console.error('Error fetching and caching V4 trades:', error);
+    // Don't throw - let the caller handle with cached data
   }
 }
