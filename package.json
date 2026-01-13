@@ -12,6 +12,7 @@
     "sync:watch": "npx tsx scripts/sync-lp-positions.ts --watch"
   },
   "dependencies": {
+    "@cowprotocol/cow-sdk": "^7.2.9",
     "@cowprotocol/widget-lib": "^0.22.1",
     "@cowprotocol/widget-react": "^0.14.3",
     "@prisma/adapter-pg": "^7.2.0",
