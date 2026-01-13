@@ -273,6 +273,17 @@ export async function submitOrder(params: {
 
   const orderBookApi = getOrderBookApi(chainId);
 
+  console.log('Submitting order to CoW Protocol:', {
+    chainId,
+    sellToken: order.sellToken,
+    buyToken: order.buyToken,
+    sellAmount: order.sellAmount,
+    buyAmount: order.buyAmount,
+    validTo: order.validTo,
+    from,
+    signatureLength: signature.length,
+  });
+
   try {
     const orderId = await orderBookApi.sendOrder({
       sellToken: order.sellToken,
@@ -294,9 +305,20 @@ export async function submitOrder(params: {
       buyTokenBalance: BuyTokenDestination.ERC20,
     });
 
+    console.log('Order submitted successfully:', orderId);
     return orderId;
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Failed to submit order:', error);
+    // Try to extract more useful error message
+    if (error && typeof error === 'object') {
+      const errorObj = error as { body?: { description?: string; errorType?: string }; message?: string };
+      if (errorObj.body?.description) {
+        throw new Error(errorObj.body.description);
+      }
+      if (errorObj.body?.errorType) {
+        throw new Error(`CoW API Error: ${errorObj.body.errorType}`);
+      }
+    }
     throw error;
   }
 }

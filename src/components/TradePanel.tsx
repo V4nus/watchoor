@@ -328,8 +328,26 @@ export default function TradePanel({
     } catch (error: unknown) {
       console.error('Trade error:', error);
       setTradeStatus('error');
-      const errorMessage = error instanceof Error ? error.message : 'Transaction failed';
-      setTradeError(errorMessage.includes('User rejected') ? 'Transaction cancelled' : errorMessage);
+      let errorMessage = 'Transaction failed';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String((error as { message: unknown }).message);
+      }
+      // User-friendly error messages
+      if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
+        setTradeError('Transaction cancelled');
+      } else if (errorMessage.includes('InsufficientBalance')) {
+        setTradeError('Insufficient balance');
+      } else if (errorMessage.includes('InsufficientAllowance')) {
+        setTradeError('Token not approved');
+      } else if (errorMessage.includes('QuoteNotFound') || errorMessage.includes('expired')) {
+        setTradeError('Quote expired, please try again');
+      } else if (errorMessage.includes('SellAmountDoesNotCoverFee')) {
+        setTradeError('Amount too small to cover fees');
+      } else {
+        setTradeError(errorMessage.length > 100 ? errorMessage.slice(0, 100) + '...' : errorMessage);
+      }
     }
   };
 
