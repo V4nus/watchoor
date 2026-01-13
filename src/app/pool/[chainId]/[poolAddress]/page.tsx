@@ -18,8 +18,8 @@ export async function generateMetadata({ params }: PoolPageProps) {
   }
 
   return {
-    title: `${pool.baseToken.symbol}/${pool.quoteToken.symbol} - DEX Screener`,
-    description: `View ${pool.baseToken.symbol}/${pool.quoteToken.symbol} price chart and trading data on ${pool.dex}`,
+    title: `${pool.baseToken.symbol}/${pool.quoteToken.symbol} - 0xArgus`,
+    description: `View ${pool.baseToken.symbol}/${pool.quoteToken.symbol} order flow, liquidity depth and trading data on ${pool.dex}`,
   };
 }
 
