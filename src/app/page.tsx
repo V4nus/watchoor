@@ -27,17 +27,17 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <img src="/logo.svg" alt="0xArgus" className="h-8" />
-              <span className="absolute -top-1 -right-8 text-[10px] px-1.5 py-0.5 bg-[#3fb950] text-black rounded font-bold animate-pulse">LIVE</span>
+              <img src="/logo.svg" alt="0xArgus" className="h-6 sm:h-8" />
+              <span className="absolute -top-1 -right-6 sm:-right-8 text-[8px] sm:text-[10px] px-1 sm:px-1.5 py-0.5 bg-[#3fb950] text-black rounded font-bold animate-pulse">LIVE</span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <LiveClock />
-            <div className="w-px h-6 bg-[#30363d] mx-2" />
+            <div className="w-px h-6 bg-[#30363d] mx-1 sm:mx-2 hidden sm:block" />
             {SUPPORTED_CHAINS.slice(0, 5).map((chain) => (
               <span
                 key={chain.id}
-                className="w-8 h-8 flex items-center justify-center bg-[#161b22] rounded text-sm hover:bg-[#3fb950]/20 hover:scale-110 border border-[#30363d] hover:border-[#3fb950]/50 transition-all cursor-pointer"
+                className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center bg-[#161b22] rounded text-xs sm:text-sm hover:bg-[#3fb950]/20 hover:scale-110 border border-[#30363d] hover:border-[#3fb950]/50 transition-all cursor-pointer"
                 title={chain.name}
               >
                 {chain.icon}
@@ -123,7 +123,7 @@ export default function Home() {
 
         {/* Stats */}
         <div className="py-12 border-t border-[#1a2332]">
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
             <AnimatedStat value={6} suffix="+" label="Chains" />
             <AnimatedStat value={12847} label="Pools Analyzed" />
             <AnimatedStat value={2.4} suffix="B" prefix="$" label="Total Liquidity" />
@@ -136,7 +136,7 @@ export default function Home() {
           <div className="text-center mb-10">
             <h2 className="text-2xl font-bold text-white">How It Works</h2>
           </div>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4">
             <ProcessStep step={1} label="Read On-Chain Ticks" active />
             <ProcessArrow />
             <ProcessStep step={2} label="Calculate Depth" />
@@ -150,7 +150,7 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-[#1a2332] py-6 mt-12 bg-[#0d1117]/80">
-        <div className="max-w-6xl mx-auto px-4 flex items-center justify-between text-sm">
+        <div className="max-w-6xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between text-sm gap-2">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#3fb950] pulse-dot" />
             <span className="text-[#3fb950] font-mono">System Online</span>
