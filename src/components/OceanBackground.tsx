@@ -15,246 +15,214 @@ export default function OceanBackground() {
     let animationFrame: number;
     let time = 0;
 
-    // Particles for underwater atmosphere
-    interface Particle {
-      x: number;
-      y: number;
-      size: number;
-      speedY: number;
-      speedX: number;
-      opacity: number;
-      type: 'bubble' | 'plankton' | 'light';
-    }
-
-    const particles: Particle[] = [];
-
     const resize = () => {
       canvas.width = window.innerWidth * window.devicePixelRatio;
       canvas.height = window.innerHeight * window.devicePixelRatio;
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-
-      // Reinitialize particles on resize
-      particles.length = 0;
-      initParticles();
     };
-
-    const initParticles = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-
-      // Bubbles - floating up
-      for (let i = 0; i < 40; i++) {
-        particles.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          size: Math.random() * 4 + 1,
-          speedY: -(Math.random() * 0.8 + 0.2),
-          speedX: (Math.random() - 0.5) * 0.3,
-          opacity: Math.random() * 0.4 + 0.1,
-          type: 'bubble',
-        });
-      }
-
-      // Plankton - drifting slowly
-      for (let i = 0; i < 60; i++) {
-        particles.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          size: Math.random() * 2 + 0.5,
-          speedY: (Math.random() - 0.5) * 0.2,
-          speedX: (Math.random() - 0.5) * 0.3,
-          opacity: Math.random() * 0.3 + 0.05,
-          type: 'plankton',
-        });
-      }
-
-      // Light rays
-      for (let i = 0; i < 8; i++) {
-        particles.push({
-          x: (width / 9) * (i + 1),
-          y: 0,
-          size: 30 + Math.random() * 40,
-          speedY: 0,
-          speedX: 0,
-          opacity: 0.03 + Math.random() * 0.02,
-          type: 'light',
-        });
-      }
-    };
-
     resize();
     window.addEventListener('resize', resize);
 
+    // Wave parameters for turbulent ocean
+    interface Wave {
+      amplitude: number;
+      wavelength: number;
+      speed: number;
+      phase: number;
+      y: number; // base Y position
+    }
+
+    const waves: Wave[] = [
+      // Main massive waves (closest to viewer)
+      { amplitude: 80, wavelength: 400, speed: 0.8, phase: 0, y: 0.35 },
+      { amplitude: 60, wavelength: 300, speed: 1.0, phase: 2, y: 0.4 },
+      { amplitude: 50, wavelength: 250, speed: 1.2, phase: 4, y: 0.45 },
+      // Mid waves
+      { amplitude: 40, wavelength: 350, speed: 0.6, phase: 1, y: 0.5 },
+      { amplitude: 35, wavelength: 280, speed: 0.9, phase: 3, y: 0.55 },
+      // Background waves
+      { amplitude: 25, wavelength: 400, speed: 0.4, phase: 0.5, y: 0.6 },
+      { amplitude: 20, wavelength: 320, speed: 0.5, phase: 2.5, y: 0.65 },
+    ];
+
+    // Foam/spray particles
+    interface Spray {
+      x: number;
+      y: number;
+      vx: number;
+      vy: number;
+      life: number;
+      maxLife: number;
+      size: number;
+    }
+    const sprays: Spray[] = [];
+
+    const addSpray = (x: number, y: number, intensity: number) => {
+      for (let i = 0; i < intensity; i++) {
+        sprays.push({
+          x,
+          y,
+          vx: (Math.random() - 0.5) * 8,
+          vy: -Math.random() * 12 - 5,
+          life: 1,
+          maxLife: Math.random() * 40 + 20,
+          size: Math.random() * 4 + 2,
+        });
+      }
+    };
+
     const draw = () => {
-      time += 0.01;
+      time += 0.025;
       const width = window.innerWidth;
       const height = window.innerHeight;
 
-      // Clear with deep ocean gradient
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, '#0a1929'); // Surface - darker blue
-      gradient.addColorStop(0.15, '#0d2137'); // Upper water
-      gradient.addColorStop(0.4, '#0a1a2e'); // Mid depth
-      gradient.addColorStop(0.7, '#061422'); // Deep
-      gradient.addColorStop(1, '#030a12'); // Abyss
-      ctx.fillStyle = gradient;
+      // Dark stormy sky gradient
+      const skyGradient = ctx.createLinearGradient(0, 0, 0, height * 0.5);
+      skyGradient.addColorStop(0, '#0a0e14');
+      skyGradient.addColorStop(0.5, '#0d1520');
+      skyGradient.addColorStop(1, '#0f1a28');
+      ctx.fillStyle = skyGradient;
       ctx.fillRect(0, 0, width, height);
 
-      // Draw water surface with waves at very top
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      for (let x = 0; x <= width; x += 20) {
-        const waveY = 15 + Math.sin(x * 0.008 + time * 1.5) * 8 + Math.sin(x * 0.015 + time * 2) * 4;
-        ctx.lineTo(x, waveY);
-      }
-      ctx.lineTo(width, 0);
-      ctx.closePath();
-      const surfaceGradient = ctx.createLinearGradient(0, 0, 0, 30);
-      surfaceGradient.addColorStop(0, 'rgba(56, 189, 248, 0.15)');
-      surfaceGradient.addColorStop(1, 'rgba(56, 189, 248, 0)');
-      ctx.fillStyle = surfaceGradient;
-      ctx.fill();
-      ctx.restore();
+      // Deep ocean base
+      const oceanGradient = ctx.createLinearGradient(0, height * 0.3, 0, height);
+      oceanGradient.addColorStop(0, '#0a2540');
+      oceanGradient.addColorStop(0.3, '#061a30');
+      oceanGradient.addColorStop(0.6, '#041222');
+      oceanGradient.addColorStop(1, '#020a14');
+      ctx.fillStyle = oceanGradient;
+      ctx.fillRect(0, height * 0.3, width, height * 0.7);
 
-      // Draw light rays from surface
-      particles.filter(p => p.type === 'light').forEach((p, i) => {
-        const rayWidth = p.size + Math.sin(time + i) * 10;
-        const shimmer = 0.5 + Math.sin(time * 0.5 + i * 0.7) * 0.5;
+      // Draw waves from back to front
+      waves.slice().reverse().forEach((wave, index) => {
+        const baseY = height * wave.y;
+        const layerIndex = waves.length - 1 - index;
 
-        ctx.save();
+        // Calculate wave path
         ctx.beginPath();
-        ctx.moveTo(p.x - rayWidth / 2, 0);
-        ctx.lineTo(p.x + rayWidth / 2, 0);
-        ctx.lineTo(p.x + rayWidth * 3, height * 0.8);
-        ctx.lineTo(p.x - rayWidth * 3, height * 0.8);
-        ctx.closePath();
+        ctx.moveTo(-50, height);
 
-        const rayGradient = ctx.createLinearGradient(0, 0, 0, height * 0.8);
-        rayGradient.addColorStop(0, `rgba(56, 189, 248, ${p.opacity * shimmer})`);
-        rayGradient.addColorStop(0.3, `rgba(34, 197, 94, ${p.opacity * 0.5 * shimmer})`);
-        rayGradient.addColorStop(1, 'rgba(56, 189, 248, 0)');
-        ctx.fillStyle = rayGradient;
-        ctx.fill();
-        ctx.restore();
-      });
+        let prevY = baseY;
+        for (let x = -50; x <= width + 50; x += 5) {
+          // Complex wave formula for turbulent effect
+          const y = baseY +
+            Math.sin((x / wave.wavelength) * Math.PI * 2 + time * wave.speed + wave.phase) * wave.amplitude +
+            Math.sin((x / (wave.wavelength * 0.5)) * Math.PI * 2 + time * wave.speed * 1.5) * wave.amplitude * 0.3 +
+            Math.sin((x / (wave.wavelength * 0.3)) * Math.PI * 2 + time * wave.speed * 2) * wave.amplitude * 0.15;
 
-      // Draw caustics (light patterns on surfaces)
-      for (let i = 0; i < 5; i++) {
-        const caustX = (width / 6) * (i + 1) + Math.sin(time + i) * 50;
-        const caustY = 100 + Math.cos(time * 0.7 + i * 2) * 30;
-        const caustSize = 80 + Math.sin(time * 1.5 + i) * 20;
+          ctx.lineTo(x, y);
 
-        ctx.save();
-        ctx.beginPath();
-        ctx.ellipse(caustX, caustY, caustSize, caustSize * 0.3, Math.sin(time + i) * 0.2, 0, Math.PI * 2);
-        const caustGradient = ctx.createRadialGradient(caustX, caustY, 0, caustX, caustY, caustSize);
-        caustGradient.addColorStop(0, 'rgba(56, 189, 248, 0.08)');
-        caustGradient.addColorStop(1, 'rgba(56, 189, 248, 0)');
-        ctx.fillStyle = caustGradient;
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // Draw bubbles
-      particles.filter(p => p.type === 'bubble').forEach(p => {
-        // Update position
-        p.y += p.speedY;
-        p.x += p.speedX + Math.sin(time * 2 + p.y * 0.01) * 0.2;
-
-        // Reset if out of bounds
-        if (p.y < -10) {
-          p.y = height + 10;
-          p.x = Math.random() * width;
+          // Add spray at wave peaks (for front waves)
+          if (layerIndex < 3 && Math.random() < 0.01 && y < prevY - 5) {
+            addSpray(x, y, 3);
+          }
+          prevY = y;
         }
 
-        // Draw bubble
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.lineTo(width + 50, height);
+        ctx.closePath();
 
-        // Bubble gradient for 3D effect
-        const bubbleGradient = ctx.createRadialGradient(
-          p.x - p.size * 0.3, p.y - p.size * 0.3, 0,
-          p.x, p.y, p.size
-        );
-        bubbleGradient.addColorStop(0, `rgba(255, 255, 255, ${p.opacity * 0.8})`);
-        bubbleGradient.addColorStop(0.5, `rgba(147, 197, 253, ${p.opacity * 0.4})`);
-        bubbleGradient.addColorStop(1, `rgba(147, 197, 253, ${p.opacity * 0.1})`);
-        ctx.fillStyle = bubbleGradient;
+        // Wave color based on depth
+        const darkness = layerIndex / waves.length;
+        const r = Math.floor(10 + darkness * 20);
+        const g = Math.floor(40 + darkness * 60);
+        const b = Math.floor(80 + darkness * 100);
+
+        // Gradient fill for each wave
+        const waveGradient = ctx.createLinearGradient(0, baseY - wave.amplitude, 0, baseY + wave.amplitude * 2);
+        waveGradient.addColorStop(0, `rgba(${r + 30}, ${g + 50}, ${b + 70}, 0.95)`);
+        waveGradient.addColorStop(0.3, `rgba(${r + 15}, ${g + 30}, ${b + 50}, 0.9)`);
+        waveGradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, 0.95)`);
+        waveGradient.addColorStop(1, `rgba(${r - 5}, ${g - 10}, ${b - 10}, 1)`);
+
+        ctx.fillStyle = waveGradient;
         ctx.fill();
 
-        // Bubble outline
-        ctx.strokeStyle = `rgba(147, 197, 253, ${p.opacity * 0.5})`;
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-        ctx.restore();
+        // Wave crest highlight (foam line)
+        if (layerIndex < 4) {
+          ctx.beginPath();
+          for (let x = -50; x <= width + 50; x += 5) {
+            const y = baseY +
+              Math.sin((x / wave.wavelength) * Math.PI * 2 + time * wave.speed + wave.phase) * wave.amplitude +
+              Math.sin((x / (wave.wavelength * 0.5)) * Math.PI * 2 + time * wave.speed * 1.5) * wave.amplitude * 0.3 +
+              Math.sin((x / (wave.wavelength * 0.3)) * Math.PI * 2 + time * wave.speed * 2) * wave.amplitude * 0.15;
+
+            if (x === -50) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+
+          const foamOpacity = 0.4 - layerIndex * 0.08;
+          ctx.strokeStyle = `rgba(200, 230, 255, ${foamOpacity})`;
+          ctx.lineWidth = 3 - layerIndex * 0.5;
+          ctx.stroke();
+
+          // Extra foam effect on wave crests
+          ctx.strokeStyle = `rgba(255, 255, 255, ${foamOpacity * 0.5})`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
       });
 
-      // Draw plankton
-      particles.filter(p => p.type === 'plankton').forEach(p => {
-        // Update position with gentle drift
-        p.y += p.speedY + Math.sin(time + p.x * 0.01) * 0.1;
-        p.x += p.speedX + Math.cos(time * 0.5 + p.y * 0.01) * 0.1;
+      // Draw and update spray particles
+      sprays.forEach((spray, i) => {
+        spray.x += spray.vx;
+        spray.y += spray.vy;
+        spray.vy += 0.4; // gravity
+        spray.life -= 1 / spray.maxLife;
 
-        // Wrap around
-        if (p.y < -10) p.y = height + 10;
-        if (p.y > height + 10) p.y = -10;
-        if (p.x < -10) p.x = width + 10;
-        if (p.x > width + 10) p.x = -10;
-
-        // Depth-based opacity (deeper = less visible)
-        const depthFactor = 1 - (p.y / height) * 0.5;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(147, 197, 253, ${p.opacity * depthFactor})`;
-        ctx.fill();
-        ctx.restore();
+        if (spray.life > 0) {
+          ctx.beginPath();
+          ctx.arc(spray.x, spray.y, spray.size * spray.life, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(200, 230, 255, ${spray.life * 0.6})`;
+          ctx.fill();
+        }
       });
 
-      // Draw depth indicator on left side
-      const depthLabels = ['Surface', '-1%', '-2%', '-5%', '-10%', '-20%', 'Deep'];
-      const depthY = [50, height * 0.15, height * 0.25, height * 0.4, height * 0.55, height * 0.7, height * 0.85];
-
-      ctx.save();
-      ctx.font = '10px monospace';
-      ctx.textAlign = 'left';
-      depthLabels.forEach((label, i) => {
-        const y = depthY[i];
-        const opacity = 0.3 + Math.sin(time + i) * 0.1;
-
-        // Dashed line
-        ctx.setLineDash([4, 8]);
-        ctx.strokeStyle = `rgba(56, 189, 248, ${opacity * 0.3})`;
-        ctx.beginPath();
-        ctx.moveTo(20, y);
-        ctx.lineTo(80, y);
-        ctx.stroke();
-
-        // Label
-        ctx.fillStyle = `rgba(148, 163, 184, ${opacity})`;
-        ctx.fillText(label, 25, y - 5);
-      });
-      ctx.restore();
-
-      // Draw sonar ping effect (periodic)
-      const pingPhase = (time * 0.5) % 3;
-      if (pingPhase < 2) {
-        const pingRadius = pingPhase * 200;
-        const pingOpacity = Math.max(0, 1 - pingPhase / 2);
-        const pingX = 60;
-        const pingY = height * 0.3;
-
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(pingX, pingY, pingRadius, -Math.PI * 0.3, Math.PI * 0.3);
-        ctx.strokeStyle = `rgba(63, 185, 80, ${pingOpacity * 0.4})`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        ctx.restore();
+      // Remove dead sprays
+      for (let i = sprays.length - 1; i >= 0; i--) {
+        if (sprays[i].life <= 0) {
+          sprays.splice(i, 1);
+        }
       }
+
+      // Dramatic foam overlay at the "splash zone"
+      const splashY = height * 0.32;
+      for (let i = 0; i < 15; i++) {
+        const foamX = (Math.sin(time * 0.5 + i * 0.8) * 0.5 + 0.5) * width;
+        const foamY = splashY + Math.sin(time * 1.2 + i) * 30;
+        const foamSize = 20 + Math.sin(time + i) * 10;
+
+        ctx.beginPath();
+        ctx.arc(foamX, foamY, foamSize, 0, Math.PI * 2);
+        const foamGradient = ctx.createRadialGradient(foamX, foamY, 0, foamX, foamY, foamSize);
+        foamGradient.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+        foamGradient.addColorStop(0.5, 'rgba(200, 230, 255, 0.08)');
+        foamGradient.addColorStop(1, 'rgba(200, 230, 255, 0)');
+        ctx.fillStyle = foamGradient;
+        ctx.fill();
+      }
+
+      // Mist/spray atmosphere at top
+      const mistGradient = ctx.createLinearGradient(0, 0, 0, height * 0.4);
+      mistGradient.addColorStop(0, 'rgba(150, 180, 200, 0.03)');
+      mistGradient.addColorStop(0.5, 'rgba(150, 180, 200, 0.06)');
+      mistGradient.addColorStop(1, 'rgba(150, 180, 200, 0)');
+      ctx.fillStyle = mistGradient;
+      ctx.fillRect(0, 0, width, height * 0.4);
+
+      // Vignette effect for drama
+      const vignetteGradient = ctx.createRadialGradient(
+        width / 2, height / 2, 0,
+        width / 2, height / 2, Math.max(width, height) * 0.8
+      );
+      vignetteGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      vignetteGradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.1)');
+      vignetteGradient.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
+      ctx.fillStyle = vignetteGradient;
+      ctx.fillRect(0, 0, width, height);
 
       animationFrame = requestAnimationFrame(draw);
     };
