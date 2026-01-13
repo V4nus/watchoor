@@ -207,7 +207,12 @@ export default function TradePanel({
       setQuote(quoteResult);
     } catch (error) {
       console.error('Quote error:', error);
-      setQuoteError('Unable to get quote');
+      // Show specific error message if available
+      if (error instanceof Error) {
+        setQuoteError(error.message);
+      } else {
+        setQuoteError('Unable to get quote');
+      }
       setQuote(null);
     } finally {
       setIsLoadingQuote(false);

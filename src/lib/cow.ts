@@ -133,8 +133,21 @@ export async function getQuote(params: QuoteParams): Promise<QuoteResult> {
       sellToken: normalizedSellToken,
       buyToken: normalizedBuyToken,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Failed to get quote:', error);
+    // Extract meaningful error message from CoW API response
+    if (error && typeof error === 'object') {
+      const errorObj = error as { body?: { errorType?: string; description?: string } };
+      if (errorObj.body?.errorType === 'NoLiquidity') {
+        throw new Error('No liquidity available for this token pair on CoW Protocol');
+      }
+      if (errorObj.body?.errorType === 'UnsupportedToken') {
+        throw new Error('Token not supported by CoW Protocol');
+      }
+      if (errorObj.body?.description) {
+        throw new Error(errorObj.body.description);
+      }
+    }
     throw error;
   }
 }
