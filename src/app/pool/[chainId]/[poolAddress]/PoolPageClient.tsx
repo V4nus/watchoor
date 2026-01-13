@@ -95,27 +95,29 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
 
   return (
     <div className="h-screen flex bg-[#0d1117]">
-      {/* Favorites Sidebar - embedded */}
-      <FavoritesSidebar
-        currentPoolAddress={pool.poolAddress}
-        isCollapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
+      {/* Favorites Sidebar - embedded, hidden on mobile */}
+      <div className="hidden md:block">
+        <FavoritesSidebar
+          currentPoolAddress={pool.poolAddress}
+          isCollapsed={sidebarCollapsed}
+          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </div>
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Compact Header with real-time price */}
-      <header className="border-b border-[#30363d] bg-[#161b22] px-4 py-2">
-        <div className="flex items-center justify-between">
+      <header className="border-b border-[#30363d] bg-[#161b22] px-2 sm:px-4 py-2">
+        <div className="flex items-center justify-between gap-2">
           {/* Left: Back + Token pair */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
               href="/"
-              className="p-1.5 hover:bg-[#30363d] rounded transition-colors"
+              className="p-1.5 hover:bg-[#30363d] rounded transition-colors flex-shrink-0"
             >
               <ArrowLeft size={18} />
             </Link>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 min-w-0">
               <TokenPairLogos
                 baseSymbol={pool.baseToken.symbol}
                 quoteSymbol={pool.quoteToken.symbol}
@@ -124,19 +126,19 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
                 chainId={pool.chainId}
                 size={28}
               />
-              <h1 className="text-lg font-bold">
+              <h1 className="text-base sm:text-lg font-bold truncate">
                 {pool.baseToken.symbol}/{pool.quoteToken.symbol}
               </h1>
-              <span className="px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
+              <span className="hidden sm:inline px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
                 {pool.chainId.toUpperCase()}
               </span>
-              <span className="px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
+              <span className="hidden sm:inline px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
                 {pool.dex}
               </span>
               {/* Favorite Button */}
               <button
                 onClick={handleToggleFavorite}
-                className={`p-1.5 rounded transition-colors ${
+                className={`p-1.5 rounded transition-colors flex-shrink-0 ${
                   isFav
                     ? 'text-yellow-500 hover:bg-[#30363d]'
                     : 'text-gray-400 hover:text-yellow-500 hover:bg-[#30363d]'
@@ -148,8 +150,8 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
             </div>
           </div>
 
-          {/* Center: Real-time price */}
-          <div className="flex-1 flex justify-center">
+          {/* Center: Real-time price - hidden on very small screens */}
+          <div className="hidden sm:flex flex-1 justify-center">
             <RealtimePrice
               chainId={pool.chainId}
               tokenAddress={pool.baseToken.address}
@@ -159,25 +161,25 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
           </div>
 
           {/* Right: 24h change */}
-          <div className={`text-sm font-medium ${priceChangeColor}`}>
-            24h: {formatPercentage(pool.priceChange24h)}
+          <div className={`text-xs sm:text-sm font-medium flex-shrink-0 ${priceChangeColor}`}>
+            {formatPercentage(pool.priceChange24h)}
           </div>
         </div>
       </header>
 
       {/* Stats bar */}
-      <div className="border-b border-[#30363d] bg-[#161b22] px-4 py-2">
-        <div className="flex items-center justify-between text-sm">
+      <div className="border-b border-[#30363d] bg-[#161b22] px-2 sm:px-4 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
           {/* Stats */}
-          <div className="flex items-center gap-6">
-            <StatItem label="24h Vol" value={`$${formatNumber(pool.volume24h)}`} />
-            <StatItem label="Liquidity" value={`$${formatNumber(pool.liquidity)}`} />
+          <div className="flex items-center gap-3 sm:gap-6 flex-wrap">
+            <StatItem label="Vol" value={`$${formatNumber(pool.volume24h)}`} />
+            <StatItem label="Liq" value={`$${formatNumber(pool.liquidity)}`} />
             <StatItem label="Buys" value={pool.txns24h.buys.toString()} color="text-[#3fb950]" />
             <StatItem label="Sells" value={pool.txns24h.sells.toString()} color="text-[#f85149]" />
           </div>
 
-          {/* Addresses */}
-          <div className="flex items-center gap-4 text-xs">
+          {/* Addresses - hidden on mobile */}
+          <div className="hidden md:flex items-center gap-4 text-xs">
             <AddressChip
               label={pool.baseToken.symbol}
               address={pool.baseToken.address}
@@ -197,11 +199,11 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
       </div>
 
       {/* Main content: Chart + Liquidity + Info */}
-      <main className="flex-1 p-2 flex gap-2 overflow-auto">
+      <main className="flex-1 p-2 flex flex-col md:flex-row gap-2 overflow-auto">
         {/* Left: Chart + LP Info stacked - scrollable */}
         <div className="flex-1 flex flex-col gap-2 min-w-0">
-          {/* Chart - fixed height */}
-          <div className="h-[500px] bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden flex-shrink-0">
+          {/* Chart - responsive height: smaller on mobile, larger on desktop */}
+          <div className="h-[300px] sm:h-[400px] md:h-[500px] bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden flex-shrink-0">
             <Chart
               chainId={pool.chainId}
               poolAddress={pool.poolAddress}
@@ -226,10 +228,10 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
           </div>
         </div>
 
-        {/* Right: Order Book + Trade History - sticky, same height */}
-        <div className="flex gap-2 flex-shrink-0 sticky top-0 self-start h-[calc(100vh-140px)]">
+        {/* Right: Order Book + Trade History - sticky on desktop, stacked on mobile */}
+        <div className="flex flex-col sm:flex-row md:flex-row gap-2 flex-shrink-0 md:sticky md:top-0 md:self-start md:h-[calc(100vh-140px)]">
           {/* Order Book */}
-          <div className="w-64 h-full">
+          <div className="w-full sm:w-64 h-[300px] sm:h-[400px] md:h-full">
             <LiquidityDepth
               chainId={pool.chainId}
               poolAddress={pool.poolAddress}
@@ -244,7 +246,7 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
             />
           </div>
           {/* Trade History */}
-          <div className="w-72 h-full">
+          <div className="w-full sm:w-72 h-[300px] sm:h-[400px] md:h-full">
             <TradeHistory
               chainId={pool.chainId}
               poolAddress={pool.poolAddress}

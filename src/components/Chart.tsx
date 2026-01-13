@@ -58,6 +58,8 @@ export default function Chart({
     if (!mainChartContainerRef.current) return;
 
     const chart = createChart(mainChartContainerRef.current, {
+      width: mainChartContainerRef.current.clientWidth,
+      height: mainChartContainerRef.current.clientHeight,
       layout: { background: { type: ColorType.Solid, color: '#0d1117' }, textColor: '#c9d1d9' },
       grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
       crosshair: {
@@ -67,8 +69,8 @@ export default function Chart({
       },
       rightPriceScale: { borderColor: '#30363d', scaleMargins: { top: 0.1, bottom: 0.2 } },
       timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
-      handleScale: { axisPressedMouseMove: true },
-      handleScroll: { vertTouchDrag: false },
+      handleScale: { axisPressedMouseMove: true, pinch: true, mouseWheel: true },
+      handleScroll: { vertTouchDrag: true, horzTouchDrag: true, mouseWheel: true, pressedMouseMove: true },
     });
 
     const candleSeries = chart.addCandlestickSeries({
@@ -228,23 +230,23 @@ export default function Chart({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[#30363d]">
-        <div className="flex items-center gap-4">
-          <span className="text-lg font-semibold">{symbol}</span>
-          {loading && <span className="text-sm text-gray-400 animate-pulse">Loading...</span>}
+      <div className="flex items-center justify-between px-2 sm:px-4 py-2 border-b border-[#30363d]">
+        <div className="flex items-center gap-2 sm:gap-4">
+          <span className="text-sm sm:text-lg font-semibold truncate max-w-[100px] sm:max-w-none">{symbol}</span>
+          {loading && <span className="text-xs sm:text-sm text-gray-400 animate-pulse">Loading...</span>}
           {/* Live indicator */}
           {!loading && (
             <span className={`flex items-center gap-1 text-xs ${isLive ? 'text-green-500' : 'text-gray-500'}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
-              {isLive ? 'LIVE' : 'DELAYED'}
+              <span className="hidden sm:inline">{isLive ? 'LIVE' : 'DELAYED'}</span>
             </span>
           )}
         </div>
 
         {/* Right side controls */}
-        <div className="flex items-center gap-3">
-          {/* Scale Mode Dropdown */}
-          <div className="relative" ref={scaleMenuRef}>
+        <div className="flex items-center gap-1 sm:gap-3">
+          {/* Scale Mode Dropdown - hidden on very small screens */}
+          <div className="relative hidden sm:block" ref={scaleMenuRef}>
             <button
               onClick={() => setShowScaleMenu(!showScaleMenu)}
               className="px-2 py-1 text-xs rounded bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d] flex items-center gap-1"
@@ -284,14 +286,14 @@ export default function Chart({
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
             </svg>
-            Fit
+            <span className="hidden sm:inline">Fit</span>
           </button>
 
           {/* Time intervals */}
-          <div className="flex gap-1">
+          <div className="flex gap-0.5 sm:gap-1">
             {TIME_INTERVALS.map((ti) => (
               <button key={ti.value} onClick={() => setInterval(ti.value)}
-                className={`px-3 py-1 text-sm rounded transition-colors ${
+                className={`px-2 sm:px-3 py-1 text-xs sm:text-sm rounded transition-colors ${
                   interval === ti.value ? 'bg-[#58a6ff] text-white' : 'bg-[#21262d] text-[#c9d1d9] hover:bg-[#30363d]'
                 }`}>{ti.label}</button>
             ))}
