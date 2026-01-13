@@ -491,23 +491,23 @@ export default function LiquidityDepth({
     return (
       <div className="bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden h-full flex flex-col">
         {/* Header Row 1: Title */}
-        <div className="px-3 py-2 border-b border-[#30363d] flex-shrink-0">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Order Book</span>
+        <div className="px-2 sm:px-3 py-2 border-b border-[#30363d] flex-shrink-0">
+          <div className="flex items-center justify-between mb-2 gap-1">
+            <div className="flex items-center gap-1 sm:gap-2">
+              <span className="text-xs sm:text-sm font-medium">Order Book</span>
               {/* Live indicator */}
-              <span className={`flex items-center gap-1 text-xs ${isRefreshing ? 'text-yellow-500' : 'text-green-500'}`}>
+              <span className={`flex items-center gap-1 text-[10px] sm:text-xs ${isRefreshing ? 'text-yellow-500' : 'text-green-500'}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${isRefreshing ? 'bg-yellow-500 animate-pulse' : 'bg-green-500'}`} />
-                {isRefreshing ? 'Updating...' : 'Live'}
+                <span className="hidden sm:inline">{isRefreshing ? 'Updating...' : 'Live'}</span>
               </span>
             </div>
             {/* Precision Selector - dynamic based on price */}
-            <div className="flex items-center gap-1 bg-[#21262d] rounded p-0.5">
+            <div className="flex items-center gap-0.5 sm:gap-1 bg-[#21262d] rounded p-0.5">
               {precisionOptions.map((precision, idx) => (
                 <button
                   key={precision}
                   onClick={() => setPrecisionIndex(idx)}
-                  className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                  className={`px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs rounded transition-colors ${
                     precisionIndex === idx
                       ? 'bg-[#30363d] text-white'
                       : 'text-gray-400 hover:text-white'
@@ -519,10 +519,10 @@ export default function LiquidityDepth({
             </div>
           </div>
           {/* Row 2: View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-[#21262d] rounded p-0.5 w-fit">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-[#21262d] rounded p-0.5 w-fit">
             <button
               onClick={() => setViewMode('individual')}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
+              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs rounded transition-colors ${
                 viewMode === 'individual'
                   ? 'bg-[#30363d] text-white'
                   : 'text-gray-400 hover:text-white'
@@ -532,7 +532,7 @@ export default function LiquidityDepth({
             </button>
             <button
               onClick={() => setViewMode('cumulative')}
-              className={`px-3 py-1 text-xs rounded transition-colors ${
+              className={`px-2 sm:px-3 py-1 text-[10px] sm:text-xs rounded transition-colors ${
                 viewMode === 'cumulative'
                   ? 'bg-[#30363d] text-white'
                   : 'text-gray-400 hover:text-white'
@@ -543,11 +543,11 @@ export default function LiquidityDepth({
           </div>
         </div>
 
-        <div className="p-2 flex-1 flex flex-col min-h-0">
+        <div className="p-1 sm:p-2 flex-1 flex flex-col min-h-0">
           {/* Header */}
-          <div className="grid grid-cols-3 text-xs text-gray-400 px-2 mb-1 flex-shrink-0">
+          <div className="grid grid-cols-3 text-[10px] sm:text-xs text-gray-400 px-1 sm:px-2 mb-1 flex-shrink-0">
             <span>Price</span>
-            <span className="text-center">{filteredData.token0Symbol}</span>
+            <span className="text-center truncate">{filteredData.token0Symbol}</span>
             <span className="text-right">USD</span>
           </div>
 
@@ -609,7 +609,7 @@ export default function LiquidityDepth({
                         className="absolute right-0 top-0 bottom-0 bg-[#f85149]/20"
                         style={{ width: `${(displayLiquidity / maxCumLiquidity) * 100}%` }}
                       />
-                      <div className="relative grid grid-cols-3 text-xs px-2 py-0.5">
+                      <div className="relative grid grid-cols-3 text-[10px] sm:text-xs px-1 sm:px-2 py-0.5">
                         <span className="text-[#f85149]">${formatPrice(priceInUsd)}</span>
                         <span className={`text-center ${baseHighlight}`}>{formatNumber(displayBase)}</span>
                         <span className={`text-right ${quoteHighlight}`}>${formatNumber(displayUsd)}</span>
@@ -622,18 +622,18 @@ export default function LiquidityDepth({
           </div>
 
           {/* Current Price with Trade Flow */}
-          <div className="bg-[#30363d] px-2 py-1 my-1 flex-shrink-0">
-            <div className="flex items-center justify-center gap-2">
-              <span className="text-white text-sm font-medium">${formatNumber(priceUsd)}</span>
-              <span className="text-gray-400 text-xs">Current</span>
+          <div className="bg-[#30363d] px-1 sm:px-2 py-1 my-1 flex-shrink-0">
+            <div className="flex items-center justify-center gap-1 sm:gap-2">
+              <span className="text-white text-xs sm:text-sm font-medium">${formatNumber(priceUsd)}</span>
+              <span className="text-gray-400 text-[10px] sm:text-xs">Current</span>
             </div>
             {/* Recent trade indicator */}
             {recentTrades.length > 0 && (
-              <div className="flex items-center justify-center gap-2 mt-1">
+              <div className="flex items-center justify-center gap-1 sm:gap-2 mt-1">
                 {recentTrades.slice(0, 3).map((trade, i) => (
                   <span
                     key={trade.timestamp + i}
-                    className={`text-xs px-1.5 py-0.5 rounded ${
+                    className={`text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded ${
                       trade.type === 'buy'
                         ? 'bg-[#3fb950]/20 text-[#3fb950]'
                         : 'bg-[#f85149]/20 text-[#f85149]'
@@ -704,7 +704,7 @@ export default function LiquidityDepth({
                         className="absolute left-0 top-0 bottom-0 bg-[#3fb950]/20"
                         style={{ width: `${(displayLiquidity / maxCumLiquidity) * 100}%` }}
                       />
-                      <div className="relative grid grid-cols-3 text-xs px-2 py-0.5">
+                      <div className="relative grid grid-cols-3 text-[10px] sm:text-xs px-1 sm:px-2 py-0.5">
                         <span className="text-[#3fb950]">${formatPrice(priceInUsd)}</span>
                         <span className={`text-center ${baseHighlight}`}>{formatNumber(displayBase)}</span>
                         <span className={`text-right ${quoteHighlight}`}>${formatNumber(displayUsd)}</span>
@@ -716,8 +716,8 @@ export default function LiquidityDepth({
             )}
           </div>
 
-          {/* Summary */}
-          <div className="mt-2 pt-2 border-t border-[#30363d] text-xs text-gray-400 px-2 space-y-1 flex-shrink-0">
+          {/* Summary - hidden on mobile to save space */}
+          <div className="mt-2 pt-2 border-t border-[#30363d] text-[10px] sm:text-xs text-gray-400 px-1 sm:px-2 space-y-1 flex-shrink-0 hidden sm:block">
             <div className="flex justify-between">
               <span>{filteredData.token0Symbol}/{filteredData.token1Symbol}</span>
               <span>

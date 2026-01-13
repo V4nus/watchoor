@@ -192,21 +192,14 @@ export default function TradeHistory({
 
       {/* Trades table - fills remaining space */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        <table className="w-full text-xs table-fixed">
-          <colgroup>
-            <col style={{ width: '72px' }} />
-            <col style={{ width: '52px' }} />
-            <col style={{ width: '64px' }} />
-            <col style={{ width: '44px' }} />
-            <col style={{ width: '24px' }} />
-          </colgroup>
+        <table className="w-full text-xs">
           <thead className="text-gray-400 sticky top-0 bg-[#161b22]">
             <tr className="border-b border-[#21262d]">
-              <th className="text-left px-2 py-1.5 font-normal">Price</th>
-              <th className="text-right px-2 py-1.5 font-normal">{baseSymbol}</th>
-              <th className="text-right px-2 py-1.5 font-normal">USD</th>
-              <th className="text-right px-2 py-1.5 font-normal">Time</th>
-              <th className="text-right px-2 py-1.5 font-normal">Tx</th>
+              <th className="text-left px-1.5 sm:px-2 py-1.5 font-normal">Price</th>
+              <th className="text-right px-1.5 sm:px-2 py-1.5 font-normal hidden sm:table-cell">{baseSymbol}</th>
+              <th className="text-right px-1.5 sm:px-2 py-1.5 font-normal">USD</th>
+              <th className="text-right px-1.5 sm:px-2 py-1.5 font-normal">Time</th>
+              <th className="text-right px-1.5 sm:px-2 py-1.5 font-normal hidden sm:table-cell">Tx</th>
             </tr>
           </thead>
           <tbody>
@@ -226,19 +219,19 @@ export default function TradeHistory({
                       isNew ? (isBuy ? 'animate-flash-green' : 'animate-flash-red') : ''
                     }`}
                   >
-                    <td className={`px-2 py-1 whitespace-nowrap ${isBuy ? 'text-[#3fb950]' : 'text-[#f85149]'}`}>
+                    <td className={`px-1.5 sm:px-2 py-1 whitespace-nowrap text-[10px] sm:text-xs ${isBuy ? 'text-[#3fb950]' : 'text-[#f85149]'}`}>
                       ${formatPrice(trade.price)}
                     </td>
-                    <td className="text-right px-2 py-1 text-gray-300 whitespace-nowrap">
+                    <td className="text-right px-1.5 sm:px-2 py-1 text-gray-300 whitespace-nowrap text-[10px] sm:text-xs hidden sm:table-cell">
                       {formatNumber(trade.amount)}
                     </td>
-                    <td className="text-right px-2 py-1 text-gray-300 whitespace-nowrap">
-                      ${trade.volumeUsd.toFixed(2)}
+                    <td className="text-right px-1.5 sm:px-2 py-1 text-gray-300 whitespace-nowrap text-[10px] sm:text-xs">
+                      ${trade.volumeUsd >= 1000 ? formatNumber(trade.volumeUsd) : trade.volumeUsd.toFixed(0)}
                     </td>
-                    <td className="text-right px-2 py-1 text-gray-400 whitespace-nowrap">
+                    <td className="text-right px-1.5 sm:px-2 py-1 text-gray-400 whitespace-nowrap text-[10px] sm:text-xs">
                       {formatTime(trade.timestamp)}
                     </td>
-                    <td className="text-right px-2 py-1 whitespace-nowrap">
+                    <td className="text-right px-1.5 sm:px-2 py-1 whitespace-nowrap hidden sm:table-cell">
                       <a
                         href={getExplorerUrl(chainId, trade.txHash)}
                         target="_blank"
