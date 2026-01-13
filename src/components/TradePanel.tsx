@@ -572,9 +572,18 @@ export default function TradePanel({
             type="text"
             value={amount}
             onChange={(e) => {
-              setAmount(e.target.value);
+              const newAmount = e.target.value;
+              setAmount(newAmount);
               setQuote(null);
               setTradeStatus('idle');
+              // 同步更新滑动条百分比（基于输入数量占余额的比例）
+              const numAmount = parseFloat(newAmount) || 0;
+              if (availableBalance > 0 && numAmount > 0) {
+                const percent = Math.min(100, Math.round((numAmount / availableBalance) * 100));
+                setSliderValue(percent);
+              } else {
+                setSliderValue(0);
+              }
             }}
             className="w-full bg-[#21262d] border border-[#30363d] rounded px-3 py-3 text-base text-white placeholder-gray-500 focus:border-[#58a6ff] focus:outline-none"
             placeholder="0.00"
