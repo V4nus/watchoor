@@ -4,11 +4,10 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { PoolInfo } from '@/types';
 import { formatNumber, formatPercentage } from '@/lib/api';
-import { ArrowLeft, ExternalLink, Copy, Check, Star, GripHorizontal } from 'lucide-react';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { ArrowLeft, ExternalLink, Copy, Check, Globe, Twitter, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 import TokenLogo, { TokenPairLogos } from '@/components/TokenLogo';
-import { isFavorite, toggleFavorite } from '@/lib/favorites';
-import FavoritesSidebar from '@/components/FavoritesSidebar';
+import { formatPrice } from '@/lib/api';
 
 // Dynamic imports for client components
 const Chart = dynamic(() => import('@/components/Chart'), {
@@ -60,55 +59,11 @@ interface PoolPageClientProps {
 
 export default function PoolPageClient({ pool }: PoolPageClientProps) {
   const [copied, setCopied] = useState<string | null>(null);
-  const [isFav, setIsFav] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [tradeEffect, setTradeEffect] = useState<'buy' | 'sell' | null>(null);
+  const [mobileTab, setMobileTab] = useState<'chart' | 'orderbook' | 'trade'>('chart');
+  const [deployerAddress, setDeployerAddress] = useState<string | null>(null);
+  const [holdersCount, setHoldersCount] = useState<number | null>(null);
   const priceChangeColor = pool.priceChange24h >= 0 ? 'text-[#3fb950]' : 'text-[#f85149]';
-
-  // Resizable panel state - percentage for chart height (transactions takes the rest)
-  const [chartHeightPercent, setChartHeightPercent] = useState(65); // Default: 65% chart, 35% transactions
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isDraggingRef = useRef(false);
-
-  // Handle drag for resizing
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isDraggingRef.current = true;
-    document.body.style.cursor = 'row-resize';
-    document.body.style.userSelect = 'none';
-  }, []);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDraggingRef.current || !containerRef.current) return;
-
-      const containerRect = containerRef.current.getBoundingClientRect();
-      const relativeY = e.clientY - containerRect.top;
-      const containerHeight = containerRect.height;
-
-      // Calculate percentage (min 30%, max 85%)
-      let newPercent = (relativeY / containerHeight) * 100;
-      newPercent = Math.max(30, Math.min(85, newPercent));
-
-      setChartHeightPercent(newPercent);
-    };
-
-    const handleMouseUp = () => {
-      if (isDraggingRef.current) {
-        isDraggingRef.current = false;
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, []);
 
   // Handle trade success - trigger chart beam effect
   const handleTradeSuccess = useCallback((tradeType: 'buy' | 'sell') => {
@@ -119,27 +74,50 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
     setTradeEffect(null);
   }, []);
 
-  // Check if pool is favorited on mount
+  // Fetch deployer address and holders count
   useEffect(() => {
-    setIsFav(isFavorite(pool.chainId, pool.poolAddress));
+    const fetchTokenInfo = async () => {
+      // Only fetch for EVM chains (not Solana)
+      if (pool.chainId === 'solana') return;
 
-    const handleUpdate = () => {
-      setIsFav(isFavorite(pool.chainId, pool.poolAddress));
+      try {
+        // Fetch contract creation info from block explorer API
+        const explorerApiUrls: Record<string, string> = {
+          base: 'https://api.basescan.org/api',
+          ethereum: 'https://api.etherscan.io/api',
+          bsc: 'https://api.bscscan.com/api',
+          arbitrum: 'https://api.arbiscan.io/api',
+          polygon: 'https://api.polygonscan.com/api',
+        };
+
+        const apiUrl = explorerApiUrls[pool.chainId];
+        if (!apiUrl) return;
+
+        // Get contract creator (deployer)
+        const creatorResponse = await fetch(
+          `${apiUrl}?module=contract&action=getcontractcreation&contractaddresses=${pool.baseToken.address}`
+        );
+        const creatorData = await creatorResponse.json();
+        if (creatorData.status === '1' && creatorData.result?.[0]?.contractCreator) {
+          setDeployerAddress(creatorData.result[0].contractCreator);
+        }
+
+        // Get token holders count (ERC20)
+        // Note: This requires a paid API key for most explorers, so we'll use a fallback
+        const holdersResponse = await fetch(
+          `${apiUrl}?module=token&action=tokeninfo&contractaddress=${pool.baseToken.address}`
+        );
+        const holdersData = await holdersResponse.json();
+        if (holdersData.status === '1' && holdersData.result?.[0]?.holdersCount) {
+          setHoldersCount(parseInt(holdersData.result[0].holdersCount));
+        }
+      } catch (error) {
+        console.error('Failed to fetch token info:', error);
+      }
     };
-    window.addEventListener('favorites-updated', handleUpdate);
-    return () => window.removeEventListener('favorites-updated', handleUpdate);
-  }, [pool.chainId, pool.poolAddress]);
 
-  const handleToggleFavorite = () => {
-    const newState = toggleFavorite({
-      chainId: pool.chainId,
-      poolAddress: pool.poolAddress,
-      baseSymbol: pool.baseToken.symbol,
-      quoteSymbol: pool.quoteToken.symbol,
-      baseImageUrl: pool.baseToken.imageUrl,
-    });
-    setIsFav(newState);
-  };
+    fetchTokenInfo();
+  }, [pool.chainId, pool.baseToken.address]);
 
   const explorerUrl = {
     base: 'https://basescan.org',
@@ -157,22 +135,11 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
   };
 
   return (
-    <div className="h-screen flex bg-[#0d1117]">
-      {/* Favorites Sidebar - embedded, hidden on mobile */}
-      <div className="hidden md:block">
-        <FavoritesSidebar
-          currentPoolAddress={pool.poolAddress}
-          isCollapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
-      </div>
-
-      {/* Main content area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Compact Header with real-time price */}
+    <div className="h-screen flex flex-col bg-[#0d1117]">
+      {/* Header with Token Info */}
       <header className="border-b border-[#30363d] bg-[#161b22] px-2 sm:px-4 py-2">
         <div className="flex items-center justify-between gap-2">
-          {/* Left: Back + Token pair */}
+          {/* Left: Back + Token pair + Price */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <Link
               href="/"
@@ -180,47 +147,40 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
             >
               <ArrowLeft size={18} />
             </Link>
-            <div className="flex items-center gap-1 sm:gap-2 min-w-0">
-              <TokenPairLogos
-                baseSymbol={pool.baseToken.symbol}
-                quoteSymbol={pool.quoteToken.symbol}
-                baseImageUrl={pool.baseToken.imageUrl}
-                quoteImageUrl={pool.quoteToken.imageUrl}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <TokenLogo
+                symbol={pool.baseToken.symbol}
+                imageUrl={pool.baseToken.imageUrl}
                 chainId={pool.chainId}
-                size={28}
+                size={36}
               />
-              <h1 className="text-base sm:text-lg font-bold truncate">
-                {pool.baseToken.symbol}/{pool.quoteToken.symbol}
-              </h1>
-              <span className="hidden sm:inline px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
-                {pool.chainId.toUpperCase()}
-              </span>
-              <span className="hidden sm:inline px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
-                {pool.dex}
-              </span>
-              {/* Favorite Button */}
-              <button
-                onClick={handleToggleFavorite}
-                className={`p-1.5 rounded transition-colors flex-shrink-0 ${
-                  isFav
-                    ? 'text-yellow-500 hover:bg-[#30363d]'
-                    : 'text-gray-400 hover:text-yellow-500 hover:bg-[#30363d]'
-                }`}
-                title={isFav ? 'Remove from favorites' : 'Add to favorites'}
-              >
-                <Star size={18} className={isFav ? 'fill-yellow-500' : ''} />
-              </button>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1 sm:gap-2">
+                  <h1 className="text-base sm:text-lg font-bold truncate">
+                    {pool.baseToken.symbol}/{pool.quoteToken.symbol}
+                  </h1>
+                  <span className="hidden sm:inline px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
+                    {pool.chainId.toUpperCase()}
+                  </span>
+                  <span className="hidden sm:inline px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
+                    {pool.dex}
+                  </span>
+                </div>
+                {/* Real-time Price */}
+                <div className="flex items-center gap-2">
+                  <span className="text-lg sm:text-xl font-bold text-white">
+                    ${formatPrice(pool.priceUsd)}
+                  </span>
+                  <span className={`text-xs sm:text-sm font-medium ${priceChangeColor}`}>
+                    {formatPercentage(pool.priceChange24h)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Center spacer for layout */}
-          <div className="hidden sm:flex flex-1" />
-
-          {/* Right: 24h change + Wallet */}
+          {/* Right: Wallet */}
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            <div className={`text-xs sm:text-sm font-medium ${priceChangeColor}`}>
-              {formatPercentage(pool.priceChange24h)}
-            </div>
             <WalletButton
               chainId={pool.chainId}
               baseTokenAddress={pool.baseToken.address}
@@ -230,19 +190,41 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
         </div>
       </header>
 
-      {/* Stats bar */}
+      {/* Token Info Card - Always visible */}
       <div className="border-b border-[#30363d] bg-[#161b22] px-2 sm:px-4 py-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm">
           {/* Stats */}
-          <div className="flex items-center gap-3 sm:gap-6 flex-wrap">
-            <StatItem label="Vol" value={`$${formatNumber(pool.volume24h)}`} />
-            <StatItem label="Liq" value={`$${formatNumber(pool.liquidity)}`} />
-            <StatItem label="Buys" value={pool.txns24h.buys.toString()} color="text-[#3fb950]" />
-            <StatItem label="Sells" value={pool.txns24h.sells.toString()} color="text-[#f85149]" />
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500">Liq:</span>
+            <span className="font-medium text-white">${formatNumber(pool.liquidity)}</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500">Vol:</span>
+            <span className="font-medium text-white">${formatNumber(pool.volume24h)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-gray-500">Txns:</span>
+            <span className="text-[#3fb950]">{pool.txns24h.buys}</span>
+            <span className="text-gray-500">/</span>
+            <span className="text-[#f85149]">{pool.txns24h.sells}</span>
+          </div>
+          {holdersCount !== null && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-500">Holders:</span>
+              <span className="font-medium text-white">{formatNumber(holdersCount)}</span>
+            </div>
+          )}
+          {pool.createdAt && (
+            <div className="hidden sm:flex items-center gap-1.5">
+              <span className="text-gray-500">Created:</span>
+              <span className="font-medium text-white">
+                {new Date(pool.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+          )}
 
-          {/* Addresses - hidden on mobile */}
-          <div className="hidden md:flex items-center gap-4 text-xs">
+          {/* Addresses */}
+          <div className="flex flex-wrap items-center gap-2 text-xs ml-auto">
             <AddressChip
               label={pool.baseToken.symbol}
               address={pool.baseToken.address}
@@ -257,67 +239,72 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
               copied={copied}
               onCopy={copyAddress}
             />
+            {deployerAddress && (
+              <AddressChip
+                label="Deployer"
+                address={deployerAddress}
+                explorerUrl={explorerUrl}
+                copied={copied}
+                onCopy={copyAddress}
+              />
+            )}
+            <a
+              href={`${explorerUrl}/token/${pool.baseToken.address}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 bg-[#21262d] hover:bg-[#30363d] rounded transition-colors"
+              title="View on Explorer"
+            >
+              <ExternalLink size={12} className="text-gray-400" />
+            </a>
           </div>
         </div>
       </div>
 
-      {/* Main content: Chart | Swap | Order Book horizontal layout */}
+      {/* Mobile Tab Navigation */}
+      <div className="lg:hidden border-b border-[#30363d] bg-[#161b22]">
+        <div className="flex">
+          <button
+            onClick={() => setMobileTab('chart')}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+              mobileTab === 'chart'
+                ? 'text-white border-b-2 border-[#58a6ff]'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Chart
+          </button>
+          <button
+            onClick={() => setMobileTab('orderbook')}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+              mobileTab === 'orderbook'
+                ? 'text-white border-b-2 border-[#58a6ff]'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Order Book
+          </button>
+          <button
+            onClick={() => setMobileTab('trade')}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+              mobileTab === 'trade'
+                ? 'text-white border-b-2 border-[#58a6ff]'
+                : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            Trade
+          </button>
+        </div>
+      </div>
+
+      {/* Main content - Desktop: horizontal layout, Mobile: tab-based */}
       <main className="flex-1 p-2 flex flex-col lg:flex-row gap-2 overflow-auto">
-        {/* Left: Chart + Transactions stacked with resizable divider */}
-        <div ref={containerRef} className="flex-1 flex flex-col min-w-0 min-h-[500px] lg:min-h-0">
-          {/* Chart - dynamic height based on chartHeightPercent */}
-          <div
-            className="bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden flex-shrink-0"
-            style={{ height: `calc(${chartHeightPercent}% - 6px)` }}
-          >
-            <Chart
-              chainId={pool.chainId}
-              poolAddress={pool.poolAddress}
-              symbol={`${pool.baseToken.symbol}/${pool.quoteToken.symbol}`}
-              baseTokenAddress={pool.baseToken.address}
-              tradeEffect={tradeEffect}
-              onTradeEffectComplete={handleTradeEffectComplete}
-            />
-          </div>
+        {/* Desktop Layout: Order Book | Chart | Swap + Transactions */}
 
-          {/* Resizable divider - drag handle */}
-          <div
-            onMouseDown={handleMouseDown}
-            className="h-3 flex items-center justify-center cursor-row-resize group hover:bg-[#30363d]/50 transition-colors flex-shrink-0 select-none"
-          >
-            <div className="flex items-center gap-0.5">
-              <GripHorizontal size={14} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
-            </div>
-          </div>
-
-          {/* Transactions - takes remaining space */}
-          <div
-            className="flex-1 min-h-[150px]"
-            style={{ height: `calc(${100 - chartHeightPercent}% - 6px)` }}
-          >
-            <TradeHistory
-              chainId={pool.chainId}
-              poolAddress={pool.poolAddress}
-              baseSymbol={pool.baseToken.symbol}
-              priceUsd={pool.priceUsd}
-            />
-          </div>
-        </div>
-
-        {/* Middle: Swap Panel */}
-        <div className="flex-shrink-0 w-full sm:w-72 lg:w-64 xl:w-72">
-          <TradePanel
-            chainId={pool.chainId}
-            baseTokenAddress={pool.baseToken.address}
-            quoteTokenAddress={pool.quoteToken.address}
-            baseSymbol={pool.baseToken.symbol}
-            quoteSymbol={pool.quoteToken.symbol}
-            onTradeSuccess={handleTradeSuccess}
-          />
-        </div>
-
-        {/* Right: Order Book */}
-        <div className="flex-shrink-0 w-full sm:w-72 lg:w-64 xl:w-72 h-[350px] sm:h-[400px] lg:h-auto lg:self-stretch">
+        {/* Left: Order Book - Hidden on mobile when not active */}
+        <div className={`flex-shrink-0 w-full lg:w-64 xl:w-72 h-[calc(100vh-280px)] lg:h-auto lg:self-stretch ${
+          mobileTab !== 'orderbook' ? 'hidden lg:block' : ''
+        }`}>
           <LiquidityDepth
             chainId={pool.chainId}
             poolAddress={pool.poolAddress}
@@ -331,8 +318,53 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
             quoteTokenAddress={pool.quoteToken.address}
           />
         </div>
+
+        {/* Middle: Chart - Hidden on mobile when not active */}
+        <div
+          className={`flex-1 flex flex-col min-w-0 min-h-[400px] lg:min-h-0 ${
+            mobileTab !== 'chart' ? 'hidden lg:flex' : ''
+          }`}
+        >
+          {/* Chart - full height */}
+          <div className="flex-1 bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden">
+            <Chart
+              chainId={pool.chainId}
+              poolAddress={pool.poolAddress}
+              symbol={`${pool.baseToken.symbol}/${pool.quoteToken.symbol}`}
+              baseTokenAddress={pool.baseToken.address}
+              tradeEffect={tradeEffect}
+              onTradeEffectComplete={handleTradeEffectComplete}
+            />
+          </div>
+        </div>
+
+        {/* Right: Swap + Transactions stacked - Hidden on mobile when not active */}
+        <div className={`flex-shrink-0 w-full lg:w-72 xl:w-80 flex flex-col gap-2 ${
+          mobileTab !== 'trade' ? 'hidden lg:flex' : ''
+        }`}>
+          {/* Swap Panel */}
+          <div className="flex-shrink-0">
+            <TradePanel
+              chainId={pool.chainId}
+              baseTokenAddress={pool.baseToken.address}
+              quoteTokenAddress={pool.quoteToken.address}
+              baseSymbol={pool.baseToken.symbol}
+              quoteSymbol={pool.quoteToken.symbol}
+              onTradeSuccess={handleTradeSuccess}
+            />
+          </div>
+
+          {/* Transactions - takes remaining space */}
+          <div className="flex-1 min-h-[200px] overflow-hidden">
+            <TradeHistory
+              chainId={pool.chainId}
+              poolAddress={pool.poolAddress}
+              baseSymbol={pool.baseToken.symbol}
+              priceUsd={pool.priceUsd}
+            />
+          </div>
+        </div>
       </main>
-      </div>
     </div>
   );
 }

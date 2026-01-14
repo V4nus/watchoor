@@ -204,22 +204,40 @@ export default function LiquidityDepth({
 
             console.log(`[LiquidityDepth] Real tick data: ${initializedTicks} initialized ticks, ${totalBidUsdc?.toFixed(2)} USDC bids, ${totalAskPing?.toFixed(2)} PING asks`);
 
+            // Filter out invalid price levels (should be within reasonable range of current price)
+            // Valid prices should be within 10x of current price
+            const minValidPrice = priceUsd * 0.1;
+            const maxValidPrice = priceUsd * 10;
+            const isValidPrice = (price: number) => price > 0 && price >= minValidPrice && price <= maxValidPrice && isFinite(price);
+
+            // Max reasonable token amount (filter out numerical overflow)
+            const maxReasonableAmount = 1e15;
+            const isValidAmount = (amount: number) => amount > 0 && amount < maxReasonableAmount && isFinite(amount);
+
             result = {
               type: 'depth',
               data: {
-                bids: (bids || []).map((b: { price: number; liquidityUSD: number; tokenAmount: number }) => ({
-                  price: b.price,
-                  // tokenAmount is USDC (quote), calculate PING (base) = USDC / price
-                  token0Amount: b.price > 0 ? b.tokenAmount / b.price : 0, // PING you can buy
-                  token1Amount: b.tokenAmount, // USDC you spend
-                  liquidityUSD: b.liquidityUSD,
-                })),
-                asks: (asks || []).map((a: { price: number; liquidityUSD: number; tokenAmount: number }) => ({
-                  price: a.price,
-                  token0Amount: a.tokenAmount, // PING for sale
-                  token1Amount: a.tokenAmount * a.price, // USDC equivalent
-                  liquidityUSD: a.liquidityUSD,
-                })),
+                bids: (bids || [])
+                  .filter((b: { price: number; liquidityUSD: number; tokenAmount: number }) =>
+                    isValidPrice(b.price) && isValidAmount(b.tokenAmount))
+                  .map((b: { price: number; liquidityUSD: number; tokenAmount: number }) => ({
+                    price: b.price,
+                    // For bids: tokenAmount is USDC (what you spend to buy base token)
+                    // Use priceUsd (current market price) for conversion, not b.price (tick price which may be different)
+                    token0Amount: priceUsd > 0 ? b.tokenAmount / priceUsd : 0, // Base token you can buy
+                    token1Amount: b.tokenAmount, // USDC you spend
+                    liquidityUSD: b.liquidityUSD,
+                  })),
+                asks: (asks || [])
+                  .filter((a: { price: number; liquidityUSD: number; tokenAmount: number }) =>
+                    isValidPrice(a.price) && isValidAmount(a.tokenAmount))
+                  .map((a: { price: number; liquidityUSD: number; tokenAmount: number }) => ({
+                    price: a.price,
+                    // For asks: tokenAmount is base token (e.g., PING) for sale
+                    token0Amount: a.tokenAmount, // Base token for sale
+                    token1Amount: a.tokenAmount * priceUsd, // USDC equivalent at current price
+                    liquidityUSD: a.liquidityUSD,
+                  })),
                 currentPrice,
                 token0Symbol: baseSymbol,
                 token1Symbol: quoteSymbol,
@@ -818,10 +836,15 @@ export default function LiquidityDepth({
 }
 
 function formatPrice(price: number): string {
+  // Handle invalid values
+  if (!isFinite(price) || price <= 0) return '0.00';
   if (price >= 1000) return price.toLocaleString('en-US', { maximumFractionDigits: 2 });
   if (price >= 1) return price.toFixed(4);
   if (price >= 0.0001) return price.toFixed(8);
-  return price.toExponential(4);
+  if (price >= 0.00000001) return price.toFixed(10);
+  // For extremely small prices, use exponential but ensure non-zero display
+  const exp = price.toExponential(4);
+  return exp === '0.0000e+0' ? '0.00' : exp;
 }
 
 function formatPrecision(precision: number): string {

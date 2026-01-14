@@ -242,7 +242,7 @@ export default function TradeHistory({
                       isNew ? (isBuy ? 'animate-flash-green' : 'animate-flash-red') : ''
                     }`}
                   >
-                    <td className={`px-2 py-1.5 whitespace-nowrap text-xs sm:text-sm ${isBuy ? 'text-[#3fb950]' : 'text-[#f85149]'}`}>
+                    <td className={`px-2 py-1.5 whitespace-nowrap text-xs sm:text-sm ${isBuy ? 'text-[#02C076]' : 'text-[#F6465D]'}`}>
                       ${formatPrice(trade.price)}
                     </td>
                     <td className="text-right px-2 py-1.5 text-gray-300 whitespace-nowrap text-xs sm:text-sm hidden sm:table-cell">

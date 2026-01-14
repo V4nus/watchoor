@@ -105,12 +105,22 @@ export default function Chart({
       timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
       handleScale: { axisPressedMouseMove: true, pinch: true, mouseWheel: true },
       handleScroll: { vertTouchDrag: true, horzTouchDrag: true, mouseWheel: true, pressedMouseMove: true },
+      watermark: {
+        visible: true,
+        text: '0xArgus',
+        fontSize: 100,
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontStyle: 'bold',
+        color: 'rgba(255, 255, 255, 0.06)',
+        horzAlign: 'center',
+        vertAlign: 'center',
+      },
     });
 
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#3fb950', downColor: '#f85149',
-      borderUpColor: '#3fb950', borderDownColor: '#f85149',
-      wickUpColor: '#3fb950', wickDownColor: '#f85149',
+      upColor: '#02C076', downColor: '#F6465D',
+      borderUpColor: '#02C076', borderDownColor: '#F6465D',
+      wickUpColor: '#02C076', wickDownColor: '#F6465D',
       priceFormat: { type: 'price', precision: 8, minMove: 0.00000001 },
     });
 
@@ -131,10 +141,23 @@ export default function Chart({
         });
       }
     };
+
+    // Use ResizeObserver to detect container size changes (for resizable panels)
+    const resizeObserver = new ResizeObserver(() => {
+      handleResize();
+    });
+    if (mainChartContainerRef.current) {
+      resizeObserver.observe(mainChartContainerRef.current);
+    }
+
     window.addEventListener('resize', handleResize);
     handleResize();
 
-    return () => { window.removeEventListener('resize', handleResize); chart.remove(); };
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+      chart.remove();
+    };
   }, []);
 
   // Fetch historical OHLCV data
@@ -156,7 +179,7 @@ export default function Chart({
         }));
         const volumeData: HistogramData<Time>[] = data.map((d: OHLCVData) => ({
           time: d.time as Time, value: d.volume,
-          color: d.close >= d.open ? 'rgba(63, 185, 80, 0.5)' : 'rgba(248, 81, 73, 0.5)',
+          color: d.close >= d.open ? 'rgba(2, 192, 118, 0.5)' : 'rgba(246, 70, 93, 0.5)',
         }));
 
         candleSeriesRef.current?.setData(candleData);
@@ -336,11 +359,11 @@ export default function Chart({
       </div>
 
       {/* Main chart */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 overflow-hidden">
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#0d1117]/80 z-10">
             <div className="text-center">
-              <p className="text-[#f85149] mb-2">{error}</p>
+              <p className="text-[#F6465D] mb-2">{error}</p>
               <p className="text-sm text-gray-400">This pool may not have OHLCV data available yet.</p>
             </div>
           </div>
@@ -358,18 +381,18 @@ export default function Chart({
                   className="absolute w-full h-1 animate-buy-beam"
                   style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', transform: tradeEffectY !== null ? 'translateY(-50%)' : 'translateY(-50%)' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#3fb950] to-transparent shadow-[0_0_20px_#3fb950,0_0_40px_#3fb950,0_0_60px_#3fb950]" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#02C076] to-transparent shadow-[0_0_20px_#02C076,0_0_40px_#02C076,0_0_60px_#02C076]" />
                 </div>
                 {/* Glow trail */}
                 <div
                   className="absolute w-full h-8 animate-buy-beam opacity-30"
                   style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', transform: tradeEffectY !== null ? 'translateY(-50%)' : 'translateY(-50%)' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#3fb950] to-transparent blur-xl" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#02C076] to-transparent blur-xl" />
                 </div>
                 {/* Vertical scanlines for effect */}
                 <div className="absolute inset-0 animate-buy-flash opacity-20">
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#3fb950]/0 via-[#3fb950]/10 to-[#3fb950]/0" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#02C076]/0 via-[#02C076]/10 to-[#02C076]/0" />
                 </div>
               </div>
             )}
@@ -382,25 +405,25 @@ export default function Chart({
                   className="absolute left-0 right-0 h-1 animate-sell-beam-down"
                   style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#f85149] via-[#f85149] to-[#f85149] shadow-[0_0_30px_#f85149,0_0_60px_#f85149,0_0_90px_#f85149]" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#F6465D] via-[#F6465D] to-[#F6465D] shadow-[0_0_30px_#F6465D,0_0_60px_#F6465D,0_0_90px_#F6465D]" />
                 </div>
                 {/* Glow trail following the beam */}
                 <div
                   className="absolute left-0 right-0 h-12 animate-sell-beam-down opacity-40"
                   style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#f85149] via-[#f85149]/60 to-transparent blur-lg" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#F6465D] via-[#F6465D]/60 to-transparent blur-lg" />
                 </div>
                 {/* Secondary wider glow */}
                 <div
                   className="absolute left-0 right-0 h-24 animate-sell-beam-down-delayed opacity-20"
                   style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#f85149] via-[#f85149]/30 to-transparent blur-2xl" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#F6465D] via-[#F6465D]/30 to-transparent blur-2xl" />
                 </div>
                 {/* Flash effect on the whole chart */}
                 <div className="absolute inset-0 animate-sell-flash opacity-10">
-                  <div className="absolute inset-0 bg-[#f85149]" />
+                  <div className="absolute inset-0 bg-[#F6465D]" />
                 </div>
               </div>
             )}
