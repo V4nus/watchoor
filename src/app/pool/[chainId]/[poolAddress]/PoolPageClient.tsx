@@ -175,7 +175,7 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
                 {/* Real-time Price */}
                 <div className="flex items-center gap-2">
                   <span className="text-lg sm:text-xl font-bold text-white">
-                    ${formatPrice(pool.priceUsd)}
+                    ${formatPrice(livePrice)}
                   </span>
                   <span className={`text-xs sm:text-sm font-medium ${priceChangeColor}`}>
                     {formatPercentage(pool.priceChange24h)}
