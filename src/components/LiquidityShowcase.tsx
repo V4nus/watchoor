@@ -73,7 +73,7 @@ export default function LiquidityShowcase() {
   const section3Progress = Math.max(0, Math.min(1, (scrollProgress - 0.66) * 3));
 
   return (
-    <div ref={containerRef} className="relative" style={{ height: '400vh' }}>
+    <div ref={containerRef} className="relative" style={{ height: '250vh' }}>
       {/* Sticky container for Apple-like scroll effect */}
       <div className="sticky top-0 h-screen overflow-hidden bg-[#0a0a0a]">
         {/* Background gradient that shifts */}
