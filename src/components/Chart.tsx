@@ -77,12 +77,12 @@ export default function Chart({
       }
 
       setShowTradeEffect(tradeEffect);
-      // Auto-clear effect after animation completes
+      // Auto-clear effect after animation completes (4 seconds for slower animation)
       const timer = setTimeout(() => {
         setShowTradeEffect(null);
         setTradeEffectY(null);
         onTradeEffectComplete?.();
-      }, 2500);
+      }, 4500);
       return () => clearTimeout(timer);
     }
   }, [tradeEffect, onTradeEffectComplete]);
@@ -377,19 +377,26 @@ export default function Chart({
             {/* Sell Effect: Red light beam from current price going downward */}
             {showTradeEffect === 'sell' && (
               <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                {/* Vertical beam - starts at current price Y coordinate */}
+                {/* Main horizontal beam at current price - similar to buy but red and crosses left to right */}
                 <div
-                  className="absolute left-1/2 -translate-x-1/2 w-1 h-full animate-sell-beam"
-                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
+                  className="absolute w-full h-1 animate-sell-beam-horizontal"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', transform: 'translateY(-50%)' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#f85149] to-transparent shadow-[0_0_20px_#f85149,0_0_40px_#f85149,0_0_60px_#f85149]" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#f85149] to-transparent shadow-[0_0_20px_#f85149,0_0_40px_#f85149,0_0_60px_#f85149]" />
                 </div>
                 {/* Glow trail */}
                 <div
-                  className="absolute left-1/2 -translate-x-1/2 w-8 h-full animate-sell-beam opacity-30"
-                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
+                  className="absolute w-full h-8 animate-sell-beam-horizontal opacity-30"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', transform: 'translateY(-50%)' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#f85149] to-transparent blur-xl" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#f85149] to-transparent blur-xl" />
+                </div>
+                {/* Downward particle effect from the price level */}
+                <div
+                  className="absolute left-1/2 -translate-x-1/2 w-2 animate-sell-drop"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', height: '200px' }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#f85149] via-[#f85149]/50 to-transparent shadow-[0_0_15px_#f85149]" />
                 </div>
                 {/* Horizontal scanlines for effect */}
                 <div className="absolute inset-0 animate-sell-flash opacity-20">
@@ -405,10 +412,10 @@ export default function Chart({
                   transform: translateX(100%);
                   opacity: 0;
                 }
-                10% {
+                5% {
                   opacity: 1;
                 }
-                90% {
+                95% {
                   opacity: 1;
                 }
                 100% {
@@ -424,19 +431,35 @@ export default function Chart({
                   opacity: 0.3;
                 }
               }
-              @keyframes sell-beam {
+              @keyframes sell-beam-horizontal {
                 0% {
-                  transform: translateY(0%);
+                  transform: translateX(-100%);
+                  opacity: 0;
+                }
+                5% {
+                  opacity: 1;
+                }
+                95% {
+                  opacity: 1;
+                }
+                100% {
+                  transform: translateX(100%);
+                  opacity: 0;
+                }
+              }
+              @keyframes sell-drop {
+                0% {
+                  transform: translateY(0) translateX(-50%);
                   opacity: 0;
                 }
                 10% {
                   opacity: 1;
                 }
-                90% {
-                  opacity: 1;
+                80% {
+                  opacity: 0.8;
                 }
                 100% {
-                  transform: translateY(100%);
+                  transform: translateY(150px) translateX(-50%);
                   opacity: 0;
                 }
               }
@@ -449,16 +472,19 @@ export default function Chart({
                 }
               }
               .animate-buy-beam {
-                animation: buy-beam 2s ease-out forwards;
+                animation: buy-beam 4s ease-out forwards;
               }
               .animate-buy-flash {
-                animation: buy-flash 1s ease-in-out;
+                animation: buy-flash 2s ease-in-out;
               }
-              .animate-sell-beam {
-                animation: sell-beam 2s ease-out forwards;
+              .animate-sell-beam-horizontal {
+                animation: sell-beam-horizontal 4s ease-out forwards;
+              }
+              .animate-sell-drop {
+                animation: sell-drop 3s ease-out forwards;
               }
               .animate-sell-flash {
-                animation: sell-flash 1s ease-in-out;
+                animation: sell-flash 2s ease-in-out;
               }
             `}</style>
           </>

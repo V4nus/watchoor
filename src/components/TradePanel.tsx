@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain, useBalance, useReadContract, useWriteContract, useSignTypedData, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain, useBalance, useReadContract, useWriteContract, useSignTypedData, useSendTransaction, usePublicClient } from 'wagmi';
 import { formatUnits, parseUnits, erc20Abi } from 'viem';
 import { CHAIN_ID_MAP } from '@/lib/wagmi';
 import { formatNumber } from '@/lib/api';
@@ -111,6 +111,7 @@ export default function TradePanel({
   const { writeContractAsync } = useWriteContract();
   const { signTypedDataAsync } = useSignTypedData();
   const { sendTransactionAsync } = useSendTransaction();
+  const publicClient = usePublicClient();
 
   const targetChainId = CHAIN_ID_MAP[chainId] || 1;
   const isSupportedChain = isChainSupported(targetChainId);
@@ -613,14 +614,38 @@ export default function TradePanel({
         buySymbol: tradeType === 'buy' ? baseSymbol : quoteSymbol,
       });
 
-      // For Uniswap, the transaction is immediate - mark as filled
+      // Wait for transaction to be confirmed
+      if (publicClient) {
+        try {
+          await publicClient.waitForTransactionReceipt({
+            hash: txHash,
+            confirmations: 1,
+          });
+        } catch (receiptError) {
+          console.error('Error waiting for receipt:', receiptError);
+          // Continue even if receipt wait fails - tx might still succeed
+        }
+      }
+
+      // Transaction confirmed - mark as filled
       setTradeStatus('filled');
       onTradeSuccess?.(tradeType);
 
-      // Refresh balances after trade
-      refetchNativeBalance();
-      if (!isQuoteNative) refetchQuoteBalance();
-      if (!isBaseNative) refetchBaseBalance();
+      // Refresh balances immediately after confirmation
+      await Promise.all([
+        refetchNativeBalance(),
+        !isQuoteNative ? refetchQuoteBalance() : Promise.resolve(),
+        !isBaseNative ? refetchBaseBalance() : Promise.resolve(),
+      ]);
+
+      // Additional refresh after a short delay to ensure blockchain state is updated
+      setTimeout(async () => {
+        await Promise.all([
+          refetchNativeBalance(),
+          !isQuoteNative ? refetchQuoteBalance() : Promise.resolve(),
+          !isBaseNative ? refetchBaseBalance() : Promise.resolve(),
+        ]);
+      }, 2000);
 
       // Reset form after success
       setTimeout(() => {
@@ -740,10 +765,21 @@ export default function TradePanel({
         // Trigger chart beam effect only when actually filled!
         onTradeSuccess?.(tradeType);
 
-        // Refresh balances after trade
-        refetchNativeBalance();
-        if (!isQuoteNative) refetchQuoteBalance();
-        if (!isBaseNative) refetchBaseBalance();
+        // Refresh balances immediately after fill
+        await Promise.all([
+          refetchNativeBalance(),
+          !isQuoteNative ? refetchQuoteBalance() : Promise.resolve(),
+          !isBaseNative ? refetchBaseBalance() : Promise.resolve(),
+        ]);
+
+        // Additional refresh after a short delay
+        setTimeout(async () => {
+          await Promise.all([
+            refetchNativeBalance(),
+            !isQuoteNative ? refetchQuoteBalance() : Promise.resolve(),
+            !isBaseNative ? refetchBaseBalance() : Promise.resolve(),
+          ]);
+        }, 2000);
 
         // Reset form after success
         setTimeout(() => {
