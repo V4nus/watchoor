@@ -197,14 +197,15 @@ export default function LiquidityDepth({
               data: {
                 bids: (bids || []).map((b: { price: number; liquidityUSD: number; tokenAmount: number }) => ({
                   price: b.price,
-                  token0Amount: 0,
-                  token1Amount: b.tokenAmount, // Real USDC amount from on-chain
+                  // tokenAmount is USDC (quote), calculate PING (base) = USDC / price
+                  token0Amount: b.price > 0 ? b.tokenAmount / b.price : 0, // PING you can buy
+                  token1Amount: b.tokenAmount, // USDC you spend
                   liquidityUSD: b.liquidityUSD,
                 })),
                 asks: (asks || []).map((a: { price: number; liquidityUSD: number; tokenAmount: number }) => ({
                   price: a.price,
-                  token0Amount: a.tokenAmount, // Real PING amount from on-chain
-                  token1Amount: 0,
+                  token0Amount: a.tokenAmount, // PING for sale
+                  token1Amount: a.tokenAmount * a.price, // USDC equivalent
                   liquidityUSD: a.liquidityUSD,
                 })),
                 currentPrice,
