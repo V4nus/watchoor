@@ -374,33 +374,33 @@ export default function Chart({
               </div>
             )}
 
-            {/* Sell Effect: Red light beam from current price going downward */}
+            {/* Sell Effect: Red light beam from sell price going downward */}
             {showTradeEffect === 'sell' && (
               <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-                {/* Main horizontal beam at current price - similar to buy but red and crosses left to right */}
+                {/* Main downward beam - full width, starts at sell price and moves down */}
                 <div
-                  className="absolute w-full h-1 animate-sell-beam-horizontal"
-                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', transform: 'translateY(-50%)' }}
+                  className="absolute left-0 right-0 h-1 animate-sell-beam-down"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#f85149] to-transparent shadow-[0_0_20px_#f85149,0_0_40px_#f85149,0_0_60px_#f85149]" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#f85149] via-[#f85149] to-[#f85149] shadow-[0_0_30px_#f85149,0_0_60px_#f85149,0_0_90px_#f85149]" />
                 </div>
-                {/* Glow trail */}
+                {/* Glow trail following the beam */}
                 <div
-                  className="absolute w-full h-8 animate-sell-beam-horizontal opacity-30"
-                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', transform: 'translateY(-50%)' }}
+                  className="absolute left-0 right-0 h-12 animate-sell-beam-down opacity-40"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#f85149] to-transparent blur-xl" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#f85149] via-[#f85149]/60 to-transparent blur-lg" />
                 </div>
-                {/* Downward particle effect from the price level */}
+                {/* Secondary wider glow */}
                 <div
-                  className="absolute left-1/2 -translate-x-1/2 w-2 animate-sell-drop"
-                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%', height: '200px' }}
+                  className="absolute left-0 right-0 h-24 animate-sell-beam-down-delayed opacity-20"
+                  style={{ top: tradeEffectY !== null ? `${tradeEffectY}px` : '50%' }}
                 >
-                  <div className="absolute inset-0 bg-gradient-to-b from-[#f85149] via-[#f85149]/50 to-transparent shadow-[0_0_15px_#f85149]" />
+                  <div className="absolute inset-0 bg-gradient-to-b from-[#f85149] via-[#f85149]/30 to-transparent blur-2xl" />
                 </div>
-                {/* Horizontal scanlines for effect */}
-                <div className="absolute inset-0 animate-sell-flash opacity-20">
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#f85149]/0 via-[#f85149]/10 to-[#f85149]/0" />
+                {/* Flash effect on the whole chart */}
+                <div className="absolute inset-0 animate-sell-flash opacity-10">
+                  <div className="absolute inset-0 bg-[#f85149]" />
                 </div>
               </div>
             )}
@@ -431,44 +431,50 @@ export default function Chart({
                   opacity: 0.3;
                 }
               }
-              @keyframes sell-beam-horizontal {
+              @keyframes sell-beam-down {
                 0% {
-                  transform: translateX(-100%);
+                  transform: translateY(0);
                   opacity: 0;
                 }
                 5% {
                   opacity: 1;
                 }
-                95% {
+                85% {
                   opacity: 1;
                 }
                 100% {
-                  transform: translateX(100%);
+                  transform: translateY(500px);
                   opacity: 0;
                 }
               }
-              @keyframes sell-drop {
+              @keyframes sell-beam-down-delayed {
                 0% {
-                  transform: translateY(0) translateX(-50%);
+                  transform: translateY(0);
                   opacity: 0;
                 }
-                10% {
-                  opacity: 1;
+                15% {
+                  opacity: 0.2;
                 }
                 80% {
-                  opacity: 0.8;
+                  opacity: 0.2;
                 }
                 100% {
-                  transform: translateY(150px) translateX(-50%);
+                  transform: translateY(500px);
                   opacity: 0;
                 }
               }
               @keyframes sell-flash {
-                0%, 100% {
+                0% {
                   opacity: 0;
                 }
-                50% {
-                  opacity: 0.3;
+                10% {
+                  opacity: 0.15;
+                }
+                30% {
+                  opacity: 0.05;
+                }
+                100% {
+                  opacity: 0;
                 }
               }
               .animate-buy-beam {
@@ -477,14 +483,14 @@ export default function Chart({
               .animate-buy-flash {
                 animation: buy-flash 2s ease-in-out;
               }
-              .animate-sell-beam-horizontal {
-                animation: sell-beam-horizontal 4s ease-out forwards;
+              .animate-sell-beam-down {
+                animation: sell-beam-down 3s ease-in forwards;
               }
-              .animate-sell-drop {
-                animation: sell-drop 3s ease-out forwards;
+              .animate-sell-beam-down-delayed {
+                animation: sell-beam-down-delayed 3.5s ease-in forwards;
               }
               .animate-sell-flash {
-                animation: sell-flash 2s ease-in-out;
+                animation: sell-flash 1.5s ease-out forwards;
               }
             `}</style>
           </>
