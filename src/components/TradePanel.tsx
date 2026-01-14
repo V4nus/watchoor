@@ -25,8 +25,9 @@ import {
   isUniswapSupported,
   selectAggregator,
   COW_MIN_TRADE_USD,
-  UNISWAP_ROUTER,
+  UNIVERSAL_ROUTER,
   PERMIT2_ADDRESS,
+  PERMIT2_ABI,
   type UniswapQuote,
 } from '@/lib/uniswap';
 
@@ -157,10 +158,12 @@ export default function TradePanel({
     query: { enabled: !isSellTokenNative && !!address && !!VAULT_RELAYER[targetChainId] },
   });
 
-  // Allowance for Uniswap via Permit2
-  // Universal Router uses Permit2, so we approve Permit2 contract
+  // Allowance for Uniswap via Permit2 (two-step approval)
+  // Step 1: Token -> Permit2 (ERC20 approve)
   const permit2Address = PERMIT2_ADDRESS as `0x${string}`;
-  const { data: allowanceUniswap, refetch: refetchAllowanceUniswap } = useReadContract({
+  const universalRouterAddress = UNIVERSAL_ROUTER[targetChainId] as `0x${string}`;
+
+  const { data: allowanceTokenToPermit2, refetch: refetchAllowanceTokenToPermit2 } = useReadContract({
     address: !isSellTokenNative ? sellTokenAddress as `0x${string}` : undefined,
     abi: erc20Abi,
     functionName: 'allowance',
@@ -168,6 +171,28 @@ export default function TradePanel({
     chainId: targetChainId,
     query: { enabled: !isSellTokenNative && !!address },
   });
+
+  // Step 2: Permit2 -> Universal Router (Permit2.allowance)
+  const { data: permit2AllowanceData, refetch: refetchPermit2Allowance } = useReadContract({
+    address: permit2Address,
+    abi: PERMIT2_ABI,
+    functionName: 'allowance',
+    args: address && sellTokenAddress && universalRouterAddress
+      ? [address, sellTokenAddress as `0x${string}`, universalRouterAddress]
+      : undefined,
+    chainId: targetChainId,
+    query: { enabled: !isSellTokenNative && !!address && !!universalRouterAddress },
+  });
+
+  // Extract Permit2 allowance amount (first element of tuple)
+  const allowancePermit2ToRouter = permit2AllowanceData ? (permit2AllowanceData as [bigint, number, number])[0] : BigInt(0);
+
+  // For Uniswap, we need BOTH approvals
+  const allowanceUniswap = allowanceTokenToPermit2;
+  const refetchAllowanceUniswap = async () => {
+    await refetchAllowanceTokenToPermit2();
+    await refetchPermit2Allowance();
+  };
 
   // Get decimals for input token
   const inputDecimals = tradeType === 'buy'
@@ -342,10 +367,14 @@ export default function TradePanel({
     ? BigInt(allowanceCow as bigint) < BigInt(quote.sellAmount)
     : false;
 
-  // Check if approval is needed (for Uniswap)
-  const needsApprovalUniswap = !isSellTokenNative && uniswapQuote && allowanceUniswap !== undefined
-    ? BigInt(allowanceUniswap as bigint) < BigInt(uniswapQuote.sellAmount)
+  // Check if approval is needed (for Uniswap - need both Token->Permit2 AND Permit2->Router)
+  const needsTokenToPermit2Approval = !isSellTokenNative && uniswapQuote && allowanceTokenToPermit2 !== undefined
+    ? BigInt(allowanceTokenToPermit2 as bigint) < BigInt(uniswapQuote.sellAmount)
     : false;
+  const needsPermit2ToRouterApproval = !isSellTokenNative && uniswapQuote
+    ? allowancePermit2ToRouter < BigInt(uniswapQuote.sellAmount)
+    : false;
+  const needsApprovalUniswap = needsTokenToPermit2Approval || needsPermit2ToRouterApproval;
 
   // Use the appropriate approval check based on aggregator
   const needsApproval = aggregator === 'cow' ? needsApprovalCow : needsApprovalUniswap;
@@ -372,31 +401,62 @@ export default function TradePanel({
   const handleApprove = async () => {
     if (!address || isSellTokenNative) return;
 
-    // Determine which spender to approve based on aggregator
-    // For CoW: approve VAULT_RELAYER
-    // For Uniswap: approve Permit2 contract (Universal Router uses Permit2)
-    const spender = aggregator === 'cow'
-      ? VAULT_RELAYER[targetChainId]
-      : permit2Address;
-
-    if (!spender) return;
-
     setIsApproving(true);
     try {
       const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+      const maxUint160 = BigInt('0xffffffffffffffffffffffffffffffffffffffff'); // Max uint160 for Permit2
+      const maxExpiration = 2592000 + Math.floor(Date.now() / 1000); // 30 days from now
 
-      await writeContractAsync({
-        address: sellTokenAddress as `0x${string}`,
-        abi: erc20Abi,
-        functionName: 'approve',
-        args: [spender, maxUint256],
-      });
-
-      // Wait a bit and refetch allowance
-      await new Promise(resolve => setTimeout(resolve, 2000));
       if (aggregator === 'cow') {
+        // CoW: simple ERC20 approve to VAULT_RELAYER
+        const spender = VAULT_RELAYER[targetChainId];
+        if (!spender) return;
+
+        await writeContractAsync({
+          address: sellTokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: 'approve',
+          args: [spender, maxUint256],
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
         await refetchAllowanceCow();
       } else {
+        // Uniswap Universal Router: two-step approval via Permit2
+        const sellAmountWei = uniswapQuote?.sellAmount || '0';
+
+        // Step 1: Check if Token -> Permit2 needs approval
+        const tokenAllowance = allowanceTokenToPermit2 as bigint | undefined;
+        if (!tokenAllowance || tokenAllowance < BigInt(sellAmountWei)) {
+          // Approve Token to Permit2
+          await writeContractAsync({
+            address: sellTokenAddress as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [permit2Address, maxUint256],
+          });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await refetchAllowanceTokenToPermit2();
+        }
+
+        // Step 2: Check if Permit2 -> Universal Router needs approval
+        if (!allowancePermit2ToRouter || allowancePermit2ToRouter < BigInt(sellAmountWei)) {
+          // Approve Universal Router on Permit2
+          await writeContractAsync({
+            address: permit2Address,
+            abi: PERMIT2_ABI,
+            functionName: 'approve',
+            args: [
+              sellTokenAddress as `0x${string}`,
+              universalRouterAddress,
+              maxUint160,
+              maxExpiration,
+            ],
+          });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await refetchPermit2Allowance();
+        }
+
         await refetchAllowanceUniswap();
       }
     } catch (error) {

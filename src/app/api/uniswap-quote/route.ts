@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, encodeFunctionData, parseAbi, type Chain, pad, toHex, concat, numberToHex } from 'viem';
+import { createPublicClient, http, encodeFunctionData, parseAbi, encodeAbiParameters, type Chain } from 'viem';
 import { mainnet, base, arbitrum, polygon, optimism } from 'viem/chains';
 
 // Chain configs
@@ -53,14 +53,24 @@ const QUOTER_ABI = parseAbi([
 // Common pool fees to try
 const POOL_FEES = [100, 500, 3000, 10000]; // 0.01%, 0.05%, 0.3%, 1%
 
-// Universal Router command constants
-const COMMANDS = {
+// Universal Router command codes
+const Commands = {
   V3_SWAP_EXACT_IN: 0x00,
-  PERMIT2_PERMIT: 0x0a,
+  V3_SWAP_EXACT_OUT: 0x01,
+  PERMIT2_TRANSFER_FROM: 0x02,
+  PERMIT2_PERMIT_BATCH: 0x03,
+  SWEEP: 0x04,
+  TRANSFER: 0x05,
+  PAY_PORTION: 0x06,
   WRAP_ETH: 0x0b,
   UNWRAP_WETH: 0x0c,
-  SWEEP: 0x04,
+  PERMIT2_TRANSFER_FROM_BATCH: 0x0d,
 };
+
+// Universal Router ABI
+const UNIVERSAL_ROUTER_ABI = parseAbi([
+  'function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable',
+]);
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -178,75 +188,80 @@ export async function GET(request: NextRequest) {
     // Build Universal Router calldata
     const deadline = Math.floor(Date.now() / 1000) + 1800; // 30 minutes
 
-    // Build the execute calldata for Universal Router
     let commands: number[] = [];
     let inputs: `0x${string}`[] = [];
 
     if (isNativeIn) {
       // ETH -> Token: WRAP_ETH + V3_SWAP_EXACT_IN
-      commands = [COMMANDS.WRAP_ETH, COMMANDS.V3_SWAP_EXACT_IN];
+      commands = [Commands.WRAP_ETH, Commands.V3_SWAP_EXACT_IN];
 
-      // WRAP_ETH input: (address recipient, uint256 amountMin)
-      const wrapInput = encodeWrapETH(UNIVERSAL_ROUTER[chainId], BigInt(sellAmount));
+      // WRAP_ETH: recipient (address), amountMin (uint256)
+      // For WRAP_ETH, recipient should be the router address (it wraps ETH to WETH held by router)
+      const wrapInput = encodeAbiParameters(
+        [{ type: 'address' }, { type: 'uint256' }],
+        [UNIVERSAL_ROUTER[chainId], BigInt(sellAmount)]
+      );
       inputs.push(wrapInput);
 
-      // V3_SWAP_EXACT_IN input
+      // V3_SWAP_EXACT_IN: recipient, amountIn, amountOutMin, path, payerIsUser
       const path = bestQuote.isMultiHop && bestQuote.hopFees
         ? encodePath([weth, weth, tokenOut], bestQuote.hopFees)
         : encodePath([weth, tokenOut], [bestQuote.fee]);
 
-      const swapInput = encodeV3SwapExactIn(
-        takerAddress as `0x${string}`,
-        BigInt(sellAmount),
-        minAmountOut,
-        path,
-        false // payerIsUser = false (router pays from wrapped ETH)
+      const swapInput = encodeAbiParameters(
+        [{ type: 'address' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'bytes' }, { type: 'bool' }],
+        [takerAddress as `0x${string}`, BigInt(sellAmount), minAmountOut, path, false] // payerIsUser = false (router pays)
       );
       inputs.push(swapInput);
 
     } else if (isNativeOut) {
       // Token -> ETH: V3_SWAP_EXACT_IN + UNWRAP_WETH
-      commands = [COMMANDS.V3_SWAP_EXACT_IN, COMMANDS.UNWRAP_WETH];
+      commands = [Commands.V3_SWAP_EXACT_IN, Commands.UNWRAP_WETH];
 
-      // V3_SWAP_EXACT_IN to get WETH (send to router)
+      // V3_SWAP_EXACT_IN to router (to unwrap)
       const path = bestQuote.isMultiHop && bestQuote.hopFees
         ? encodePath([tokenIn, weth, weth], bestQuote.hopFees)
         : encodePath([tokenIn, weth], [bestQuote.fee]);
 
-      const swapInput = encodeV3SwapExactIn(
-        UNIVERSAL_ROUTER[chainId], // recipient is router (to unwrap)
-        BigInt(sellAmount),
-        minAmountOut,
-        path,
-        true // payerIsUser = true (user pays via Permit2)
+      // ADDRESS_THIS (0x0000000000000000000000000000000000000002) = send to router
+      const ADDRESS_THIS = '0x0000000000000000000000000000000000000002' as `0x${string}`;
+      const swapInput = encodeAbiParameters(
+        [{ type: 'address' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'bytes' }, { type: 'bool' }],
+        [ADDRESS_THIS, BigInt(sellAmount), minAmountOut, path, true] // payerIsUser = true
       );
       inputs.push(swapInput);
 
-      // UNWRAP_WETH input: (address recipient, uint256 amountMin)
-      const unwrapInput = encodeUnwrapWETH(takerAddress as `0x${string}`, minAmountOut);
+      // UNWRAP_WETH: recipient, amountMin
+      const unwrapInput = encodeAbiParameters(
+        [{ type: 'address' }, { type: 'uint256' }],
+        [takerAddress as `0x${string}`, minAmountOut]
+      );
       inputs.push(unwrapInput);
 
     } else {
       // Token -> Token: just V3_SWAP_EXACT_IN
-      commands = [COMMANDS.V3_SWAP_EXACT_IN];
+      commands = [Commands.V3_SWAP_EXACT_IN];
 
       const path = bestQuote.isMultiHop && bestQuote.hopFees
         ? encodePath([tokenIn, weth, tokenOut], bestQuote.hopFees)
         : encodePath([tokenIn, tokenOut], [bestQuote.fee]);
 
-      const swapInput = encodeV3SwapExactIn(
-        takerAddress as `0x${string}`,
-        BigInt(sellAmount),
-        minAmountOut,
-        path,
-        true // payerIsUser = true (user pays via Permit2)
+      // MSG_SENDER (0x0000000000000000000000000000000000000001) could also be used, but explicit address is clearer
+      const swapInput = encodeAbiParameters(
+        [{ type: 'address' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'bytes' }, { type: 'bool' }],
+        [takerAddress as `0x${string}`, BigInt(sellAmount), minAmountOut, path, true] // payerIsUser = true
       );
       inputs.push(swapInput);
     }
 
-    // Encode the execute function call
-    const commandsBytes = `0x${commands.map(c => c.toString(16).padStart(2, '0')).join('')}` as `0x${string}`;
-    const data = encodeExecute(commandsBytes, inputs, BigInt(deadline));
+    // Encode execute function call
+    const commandsHex = `0x${commands.map(c => c.toString(16).padStart(2, '0')).join('')}` as `0x${string}`;
+
+    const data = encodeFunctionData({
+      abi: UNIVERSAL_ROUTER_ABI,
+      functionName: 'execute',
+      args: [commandsHex, inputs, BigInt(deadline)],
+    });
 
     // Calculate price
     const price = Number(bestQuote.amountOut) / Number(sellAmount);
@@ -263,9 +278,10 @@ export async function GET(request: NextRequest) {
       fee: bestQuote.fee,
       priceImpact: '0',
       isMultiHop: bestQuote.isMultiHop,
-      // Additional info for frontend to handle Permit2
+      // Info for frontend - need Permit2 approval for token transfers
       permit2Address: PERMIT2_ADDRESS,
-      needsPermit2: !isNativeIn, // Only need Permit2 approval if not paying with ETH
+      needsPermit2: !isNativeIn,
+      universalRouter: UNIVERSAL_ROUTER[chainId],
     });
   } catch (error) {
     console.error('Uniswap quote error:', error);
@@ -290,107 +306,4 @@ function encodePath(tokens: `0x${string}`[], fees: number[]): `0x${string}` {
   }
 
   return `0x${path}` as `0x${string}`;
-}
-
-// Helper: encode V3_SWAP_EXACT_IN input
-// (address recipient, uint256 amountIn, uint256 amountOutMin, bytes path, bool payerIsUser)
-function encodeV3SwapExactIn(
-  recipient: `0x${string}`,
-  amountIn: bigint,
-  amountOutMin: bigint,
-  path: `0x${string}`,
-  payerIsUser: boolean
-): `0x${string}` {
-  // ABI encode: (address, uint256, uint256, bytes, bool)
-  const recipientPadded = pad(recipient, { size: 32 });
-  const amountInHex = pad(toHex(amountIn), { size: 32 });
-  const amountOutMinHex = pad(toHex(amountOutMin), { size: 32 });
-  const payerHex = pad(payerIsUser ? '0x01' as `0x${string}` : '0x00' as `0x${string}`, { size: 32 });
-
-  // For bytes, we need offset + length + data
-  const pathOffset = pad(toHex(BigInt(160)), { size: 32 }); // 5 * 32 = 160
-  const pathLength = pad(toHex(BigInt((path.length - 2) / 2)), { size: 32 });
-  const pathData = path.slice(2);
-  const pathPadded = pathData + '0'.repeat((64 - (pathData.length % 64)) % 64);
-
-  return concat([
-    recipientPadded,
-    amountInHex,
-    amountOutMinHex,
-    pathOffset,
-    payerHex,
-    pathLength,
-    `0x${pathPadded}` as `0x${string}`,
-  ]);
-}
-
-// Helper: encode WRAP_ETH input
-function encodeWrapETH(recipient: `0x${string}`, amountMin: bigint): `0x${string}` {
-  const recipientPadded = pad(recipient, { size: 32 });
-  const amountHex = pad(toHex(amountMin), { size: 32 });
-  return concat([recipientPadded, amountHex]);
-}
-
-// Helper: encode UNWRAP_WETH input
-function encodeUnwrapWETH(recipient: `0x${string}`, amountMin: bigint): `0x${string}` {
-  const recipientPadded = pad(recipient, { size: 32 });
-  const amountHex = pad(toHex(amountMin), { size: 32 });
-  return concat([recipientPadded, amountHex]);
-}
-
-// Helper: encode execute function
-function encodeExecute(commands: `0x${string}`, inputs: `0x${string}`[], deadline: bigint): `0x${string}` {
-  // Function selector for execute(bytes commands, bytes[] inputs, uint256 deadline)
-  const selector = '0x3593564c';
-
-  // Encode deadline
-  const deadlineHex = pad(toHex(deadline), { size: 32 });
-
-  // Encode commands offset (always 96 = 0x60 for 3 params)
-  const commandsOffset = pad(toHex(BigInt(96)), { size: 32 });
-
-  // Calculate inputs array offset (after commands)
-  const commandsLength = (commands.length - 2) / 2;
-  const commandsPaddedLength = Math.ceil(commandsLength / 32) * 32;
-  const inputsOffset = pad(toHex(BigInt(96 + 32 + commandsPaddedLength)), { size: 32 });
-
-  // Encode commands bytes
-  const commandsLengthHex = pad(toHex(BigInt(commandsLength)), { size: 32 });
-  const commandsData = commands.slice(2);
-  const commandsPadded = commandsData + '0'.repeat((64 - (commandsData.length % 64)) % 64);
-
-  // Encode inputs array
-  const inputsCount = pad(toHex(BigInt(inputs.length)), { size: 32 });
-
-  // Calculate offsets for each input
-  let inputsEncoded = inputsCount;
-  let dataOffset = inputs.length * 32; // Start after all offset pointers
-  const inputDatas: string[] = [];
-
-  for (const input of inputs) {
-    inputsEncoded = concat([inputsEncoded, pad(toHex(BigInt(dataOffset)), { size: 32 })]);
-    const inputLength = (input.length - 2) / 2;
-    const inputLengthHex = pad(toHex(BigInt(inputLength)), { size: 32 }).slice(2);
-    const inputData = input.slice(2);
-    const inputPadded = inputData + '0'.repeat((64 - (inputData.length % 64)) % 64);
-    inputDatas.push(inputLengthHex + inputPadded);
-    dataOffset += 32 + Math.ceil(inputLength / 32) * 32;
-  }
-
-  // Combine everything
-  let result = concat([
-    selector as `0x${string}`,
-    commandsOffset,
-    inputsOffset,
-    deadlineHex,
-    commandsLengthHex,
-    `0x${commandsPadded}` as `0x${string}`,
-    inputsEncoded,
-  ]);
-
-  for (const data of inputDatas) {
-    result = concat([result, `0x${data}` as `0x${string}`]);
-  }
-
-  return result;
 }

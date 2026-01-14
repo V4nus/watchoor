@@ -52,6 +52,7 @@ export interface UniswapQuote {
   priceImpact: string;
   permit2Address?: string;
   needsPermit2?: boolean;
+  universalRouter?: string;
 }
 
 /**
@@ -89,6 +90,38 @@ export function selectAggregator(amountUsd: number): 'cow' | 'uniswap' {
   return amountUsd >= COW_MIN_TRADE_USD ? 'cow' : 'uniswap';
 }
 
+// Permit2 ABI for approval functions
+export const PERMIT2_ABI = [
+  // Check allowance granted from token owner to spender via Permit2
+  {
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'token', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    name: 'allowance',
+    outputs: [
+      { name: 'amount', type: 'uint160' },
+      { name: 'expiration', type: 'uint48' },
+      { name: 'nonce', type: 'uint48' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  // Approve spender to spend tokens via Permit2
+  {
+    inputs: [
+      { name: 'token', type: 'address' },
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint160' },
+      { name: 'expiration', type: 'uint48' },
+    ],
+    name: 'approve',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+] as const;
+
 // Export addresses for use in components
-// UNISWAP_ROUTER now points to Permit2 for approval (not Universal Router directly)
-export { UNIVERSAL_ROUTER as UNISWAP_ROUTER, PERMIT2_ADDRESS, UNISWAP_QUOTER };
+export { UNIVERSAL_ROUTER, PERMIT2_ADDRESS, UNISWAP_QUOTER };
