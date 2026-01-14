@@ -2,12 +2,12 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { PoolInfo } from '@/types';
-import { formatNumber, formatPercentage } from '@/lib/api';
-import { ArrowLeft, ExternalLink, Copy, Check, Globe, Twitter, MessageCircle } from 'lucide-react';
-import { useState, useEffect, useCallback } from 'react';
+import { PoolInfo, SearchResult, SUPPORTED_CHAINS } from '@/types';
+import { formatNumber, formatPercentage, searchPools, formatPrice } from '@/lib/api';
+import { ArrowLeft, ExternalLink, Copy, Check, Globe, Twitter, MessageCircle, Search, X, Loader2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import TokenLogo, { TokenPairLogos } from '@/components/TokenLogo';
-import { formatPrice } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 // Dynamic imports for client components
 const Chart = dynamic(() => import('@/components/Chart'), {
@@ -58,6 +58,7 @@ interface PoolPageClientProps {
 }
 
 export default function PoolPageClient({ pool }: PoolPageClientProps) {
+  const router = useRouter();
   const [copied, setCopied] = useState<string | null>(null);
   const [tradeEffect, setTradeEffect] = useState<'buy' | 'sell' | null>(null);
   const [mobileTab, setMobileTab] = useState<'chart' | 'orderbook' | 'trade'>('chart');
@@ -65,6 +66,14 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
   const [holdersCount, setHoldersCount] = useState<number | null>(null);
   const [livePrice, setLivePrice] = useState<number>(pool.priceUsd);
   const priceChangeColor = pool.priceChange24h >= 0 ? 'text-[#3fb950]' : 'text-[#f85149]';
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Handle trade success - trigger chart beam effect
   const handleTradeSuccess = useCallback((tradeType: 'buy' | 'sell') => {
@@ -79,6 +88,46 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
   const handlePriceUpdate = useCallback((price: number) => {
     setLivePrice(price);
   }, []);
+
+  // Search functionality
+  useEffect(() => {
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      const results = await searchPools(trimmedQuery);
+      setSearchResults(results.slice(0, 8)); // Limit to 8 results for compact view
+      setSearchLoading(false);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Close search dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSearchResults(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSearchSelect = (result: SearchResult) => {
+    router.push(`/pool/${result.chainId}/${result.poolAddress}`);
+    setShowSearchResults(false);
+    setSearchQuery('');
+  };
+
+  const getChainIcon = (chainId: string) => {
+    return SUPPORTED_CHAINS.find((c) => c.id === chainId)?.icon || '🔗';
+  };
 
   // Fetch deployer address and holders count
   useEffect(() => {
@@ -183,6 +232,85 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Center: Search Bar */}
+          <div ref={searchContainerRef} className="hidden sm:block flex-1 max-w-md mx-4 relative">
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+                size={16}
+              />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setShowSearchResults(true)}
+                placeholder="Search token or pool..."
+                className="w-full pl-9 pr-8 py-1.5 bg-[#0d1117] border border-[#30363d] rounded-lg text-sm text-[#c9d1d9] placeholder-gray-500 focus:outline-none focus:border-[#58a6ff] transition-colors"
+              />
+              {searchLoading && (
+                <Loader2
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 animate-spin"
+                  size={14}
+                />
+              )}
+              {!searchLoading && searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    searchInputRef.current?.focus();
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Search Results Dropdown */}
+            {showSearchResults && searchResults.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-lg shadow-xl overflow-hidden z-50 max-h-[400px] overflow-y-auto">
+                {searchResults.map((result, index) => (
+                  <button
+                    key={`${result.chainId}-${result.poolAddress}-${index}`}
+                    onClick={() => handleSearchSelect(result)}
+                    className="w-full px-3 py-2 flex items-center gap-2 hover:bg-[#21262d] transition-colors text-left"
+                  >
+                    <TokenPairLogos
+                      baseSymbol={result.baseToken.symbol}
+                      quoteSymbol={result.quoteToken.symbol}
+                      baseImageUrl={result.baseToken.imageUrl}
+                      chainId={result.chainId}
+                      size={24}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-sm">
+                          {result.baseToken.symbol}/{result.quoteToken.symbol}
+                        </span>
+                        <span className="text-xs" title={result.chainId}>{getChainIcon(result.chainId)}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 truncate">
+                        {result.baseToken.name}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">${formatPrice(result.priceUsd)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* No results */}
+            {showSearchResults && searchQuery.length >= 2 && !searchLoading && searchResults.length === 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-lg p-3 text-center text-sm text-gray-400">
+                No results for &quot;{searchQuery}&quot;
+              </div>
+            )}
           </div>
 
           {/* Right: Wallet */}
