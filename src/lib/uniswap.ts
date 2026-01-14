@@ -3,13 +3,13 @@
  * Used for small trades where CoW batch auctions may timeout
  */
 
-// Uniswap Universal Router addresses per chain
+// Uniswap SwapRouter02 addresses per chain (supports direct approve, no Permit2)
 const UNISWAP_ROUTER: Record<number, string> = {
-  1: '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD',      // Ethereum
-  8453: '0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD',   // Base
-  42161: '0x5E325eDA8064b456f4781070C0738d849c824258', // Arbitrum
-  137: '0xec7BE89e9d109e7e3Fec59c222CF297125FEFda2',   // Polygon
-  10: '0xCb1355ff08Ab38bBCE60111F1bb2B784bE25D7e8',    // Optimism
+  1: '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45',      // Ethereum
+  8453: '0x2626664c2603336E57B271c5C0b26F421741e481',   // Base
+  42161: '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45', // Arbitrum
+  137: '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45',   // Polygon
+  10: '0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45',    // Optimism
 };
 
 // Uniswap Quoter V2 addresses per chain

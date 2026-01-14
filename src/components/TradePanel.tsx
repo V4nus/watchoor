@@ -1029,17 +1029,19 @@ export default function TradePanel({
         </div>
       )}
 
-      {/* Powered by aggregator */}
-      <div className="px-3 py-2 border-t border-[#30363d] text-center">
-        <a
-          href={aggregator === 'cow' ? 'https://cow.fi' : 'https://uniswap.org'}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
-        >
-          {aggregator === 'cow' ? t.trade.poweredBy : 'Powered by Uniswap'}
-        </a>
-      </div>
+      {/* Powered by CoW (only show for CoW trades) */}
+      {aggregator === 'cow' && (
+        <div className="px-3 py-2 border-t border-[#30363d] text-center">
+          <a
+            href="https://cow.fi"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
+          >
+            {t.trade.poweredBy}
+          </a>
+        </div>
+      )}
     </div>
   );
 }
