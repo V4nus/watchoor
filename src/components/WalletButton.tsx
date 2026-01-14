@@ -180,36 +180,47 @@ export default function WalletButton({
               <div className="text-xs text-gray-400 mt-1">Choose your preferred wallet</div>
             </div>
             <div className="p-2 space-y-1">
-              {connectors.map((connector) => {
-                const icon = getWalletIcon(connector.name);
-                return (
-                  <button
-                    key={connector.uid}
-                    onClick={() => handleConnect(connector)}
-                    disabled={isConnecting}
-                    className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-[#21262d] rounded-lg transition-colors text-left"
-                  >
-                    {icon ? (
-                      <img src={icon} alt={connector.name} className="w-8 h-8 rounded-lg" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-lg bg-[#30363d] flex items-center justify-center">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-white">{connector.name}</div>
-                      {connector.name.toLowerCase().includes('walletconnect') && (
-                        <div className="text-xs text-gray-400">Scan with mobile wallet</div>
+              {connectors
+                // Filter out generic "Injected" connectors - show only named wallets
+                .filter((connector) => {
+                  const name = connector.name.toLowerCase();
+                  // Keep wallets with specific names, filter out generic "injected"
+                  return name !== 'injected' && connector.name !== 'Injected';
+                })
+                // Remove duplicates by name (keep first occurrence)
+                .filter((connector, index, arr) =>
+                  arr.findIndex(c => c.name === connector.name) === index
+                )
+                .map((connector) => {
+                  const icon = getWalletIcon(connector.name);
+                  return (
+                    <button
+                      key={connector.uid}
+                      onClick={() => handleConnect(connector)}
+                      disabled={isConnecting}
+                      className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-[#21262d] rounded-lg transition-colors text-left"
+                    >
+                      {icon ? (
+                        <img src={icon} alt={connector.name} className="w-8 h-8 rounded-lg" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-[#30363d] flex items-center justify-center">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                        </div>
                       )}
-                    </div>
-                    {isConnecting && (
-                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                    )}
-                  </button>
-                );
-              })}
+                      <div className="flex-1">
+                        <div className="text-sm font-medium text-white">{connector.name}</div>
+                        {connector.name.toLowerCase().includes('walletconnect') && (
+                          <div className="text-xs text-gray-400">Scan with mobile wallet</div>
+                        )}
+                      </div>
+                      {isConnecting && (
+                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      )}
+                    </button>
+                  );
+                })}
             </div>
           </div>
         )}
