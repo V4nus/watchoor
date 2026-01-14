@@ -274,16 +274,24 @@ export default function LiquidityDepth({
           if (!isV4Pool && priceUsd > 0) {
             const minValidPrice = priceUsd * 0.01; // Within 100x of current price
             const maxValidPrice = priceUsd * 100;
-            const maxReasonableUSD = 1e12; // $1 trillion max
+            const maxReasonableUSD = 1e9; // $1 billion max (reduced from 1 trillion)
+            const maxReasonableTokenAmount = 1e12; // 1 trillion tokens max
 
-            const isValidLevel = (level: { price: number; liquidityUSD: number }) =>
-              level.price > 0 &&
-              level.price >= minValidPrice &&
-              level.price <= maxValidPrice &&
-              isFinite(level.price) &&
-              level.liquidityUSD > 0 &&
-              level.liquidityUSD < maxReasonableUSD &&
-              isFinite(level.liquidityUSD);
+            const isValidLevel = (level: { price: number; liquidityUSD: number; token0Amount?: number; token1Amount?: number }) => {
+              // Price must be within reasonable range
+              if (!isFinite(level.price) || level.price <= 0) return false;
+              if (level.price < minValidPrice || level.price > maxValidPrice) return false;
+
+              // LiquidityUSD must be reasonable
+              if (!isFinite(level.liquidityUSD) || level.liquidityUSD <= 0) return false;
+              if (level.liquidityUSD > maxReasonableUSD) return false;
+
+              // Token amounts must be reasonable (if present)
+              if (level.token0Amount !== undefined && (!isFinite(level.token0Amount) || level.token0Amount > maxReasonableTokenAmount)) return false;
+              if (level.token1Amount !== undefined && (!isFinite(level.token1Amount) || level.token1Amount > maxReasonableTokenAmount)) return false;
+
+              return true;
+            };
 
             newData = {
               ...newData,

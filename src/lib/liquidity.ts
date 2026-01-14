@@ -771,14 +771,14 @@ export async function getLiquidityDepth(
       isToken0Base = priceUsd < 1;
     }
 
-    // Calculate decimal adjustment for price conversion
-    // decimalAdjust = priceUsd * 1.0001^currentTick (for tick -> price conversion)
-    const decimalAdjust = priceUsd > 0 ? priceUsd * Math.pow(1.0001, currentTick) : 1e12;
-
     // Helper: convert tick to USD price
+    // Uses the relationship: price(tick) = price(currentTick) * 1.0001^(tick - currentTick)
+    // When tick > currentTick, price goes up (asks)
+    // When tick < currentTick, price goes down (bids)
     const tickToPriceUsd = (tick: number): number => {
       const safeTick = Math.max(-887272, Math.min(887272, tick));
-      const price = decimalAdjust / Math.pow(1.0001, safeTick);
+      const tickDelta = safeTick - currentTick;
+      const price = priceUsd * Math.pow(1.0001, tickDelta);
       if (!isFinite(price) || price > 1e18) return 1e18;
       if (price < 1e-18) return 1e-18;
       return price;
