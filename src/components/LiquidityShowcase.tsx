@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown } from 'lucide-react';
 
 // Generate tick data
 function generateTickData(currentPrice: number, tickCount: number = 20) {
@@ -32,9 +31,8 @@ function formatK(num: number): string {
 
 export default function LiquidityShowcase() {
   const [ticks, setTicks] = useState<{ price: number; liquidity: number; side: 'bid' | 'ask' }[]>([]);
-  const [activeSection, setActiveSection] = useState(0);
+  const [scrollProgress, setScrollProgress] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const sectionRefs = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)];
 
   useEffect(() => {
     setTicks(generateTickData(2847.32));
@@ -45,265 +43,377 @@ export default function LiquidityShowcase() {
   }, []);
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const index = sectionRefs.findIndex(ref => ref.current === entry.target);
-            if (index !== -1) {
-              setActiveSection(index);
-            }
-          }
-        });
-      },
-      { threshold: 0.6 }
-    );
+    const handleScroll = () => {
+      if (!containerRef.current) return;
 
-    sectionRefs.forEach(ref => ref.current && observer.observe(ref.current));
-    return () => observer.disconnect();
+      const rect = containerRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      const containerHeight = containerRef.current.offsetHeight;
+
+      // Calculate scroll progress (0 to 1) through the entire showcase
+      const scrolled = -rect.top;
+      const totalScrollable = containerHeight - windowHeight;
+      const progress = Math.max(0, Math.min(1, scrolled / totalScrollable));
+
+      setScrollProgress(progress);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
-
-  const scrollToSection = (index: number) => {
-    sectionRefs[index]?.current?.scrollIntoView({ behavior: 'smooth' });
-  };
 
   const maxLiq = Math.max(...ticks.map(t => t.liquidity), 1);
   const bids = ticks.filter(t => t.side === 'bid').slice(0, 10);
   const asks = ticks.filter(t => t.side === 'ask').slice(0, 10);
 
-  const sections = [
-    {
-      title: 'Real-time Order Book',
-      subtitle: 'Bid/Ask depth visualization from concentrated liquidity pools',
-      number: '01',
-    },
-    {
-      title: 'Tick Distribution',
-      subtitle: 'Liquidity concentration across price ranges in V3/V4 pools',
-      number: '02',
-    },
-    {
-      title: 'Depth Heatmap',
-      subtitle: 'Visual intensity mapping of liquidity density',
-      number: '03',
-    },
-  ];
+  // Section progress (each section is 1/3 of total)
+  const section1Progress = Math.min(1, scrollProgress * 3);
+  const section2Progress = Math.max(0, Math.min(1, (scrollProgress - 0.33) * 3));
+  const section3Progress = Math.max(0, Math.min(1, (scrollProgress - 0.66) * 3));
 
   return (
-    <div ref={containerRef} className="relative">
-      {/* Progress indicator */}
-      <div className="fixed right-8 top-1/2 -translate-y-1/2 z-50 hidden lg:flex flex-col gap-3">
-        {sections.map((_, i) => (
-          <button
-            key={i}
-            onClick={() => scrollToSection(i)}
-            className={`w-2 h-2 rounded-full transition-all duration-300 ${
-              activeSection === i
-                ? 'bg-green-500 scale-150'
-                : 'bg-gray-600 hover:bg-gray-400'
-            }`}
-          />
-        ))}
-      </div>
+    <div ref={containerRef} className="relative" style={{ height: '400vh' }}>
+      {/* Sticky container for Apple-like scroll effect */}
+      <div className="sticky top-0 h-screen overflow-hidden bg-[#0a0a0a]">
+        {/* Background gradient that shifts */}
+        <div
+          className="absolute inset-0 transition-opacity duration-700"
+          style={{
+            background: `radial-gradient(ellipse at ${50 + scrollProgress * 20}% ${50 - scrollProgress * 30}%, rgba(34, 197, 94, 0.08) 0%, transparent 50%)`,
+          }}
+        />
 
-      {/* Section 1: Order Book */}
-      <section
-        ref={sectionRefs[0]}
-        className="min-h-screen flex items-center justify-center py-20 relative"
-      >
-        <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left: Text */}
-          <div className={`transition-all duration-700 ${activeSection >= 0 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10'}`}>
-            <span className="text-green-500 font-mono text-sm">{sections[0].number}</span>
-            <h2 className="text-4xl lg:text-5xl font-bold mt-2 mb-4">{sections[0].title}</h2>
-            <p className="text-gray-400 text-lg max-w-md">{sections[0].subtitle}</p>
-            <div className="mt-8 flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-green-500" />
-                <span className="text-sm text-gray-400">Bids</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-red-500" />
-                <span className="text-sm text-gray-400">Asks</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Visualization */}
-          <div className={`transition-all duration-700 delay-200 ${activeSection >= 0 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
-            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-6 shadow-2xl">
-              <div className="flex items-center justify-between mb-4">
+        {/* Section 1: Order Book with 3D perspective */}
+        <div
+          className="absolute inset-0 flex items-center justify-center transition-all duration-300"
+          style={{
+            opacity: section1Progress < 0.7 ? 1 : 1 - (section1Progress - 0.7) / 0.3,
+            transform: `
+              perspective(1200px)
+              translateZ(${section1Progress > 0.7 ? -(section1Progress - 0.7) * 500 : 0}px)
+              translateY(${section1Progress > 0.7 ? -(section1Progress - 0.7) * 100 : 0}px)
+            `,
+            pointerEvents: section1Progress > 0.9 ? 'none' : 'auto',
+          }}
+        >
+          <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left: Text with stagger animation */}
+            <div
+              className="transition-all duration-700"
+              style={{
+                opacity: Math.min(1, section1Progress * 2),
+                transform: `translateX(${(1 - Math.min(1, section1Progress * 2)) * -50}px)`,
+              }}
+            >
+              <span className="text-green-500 font-mono text-sm tracking-widest">01</span>
+              <h2
+                className="text-5xl lg:text-6xl font-bold mt-4 mb-6 leading-tight"
+                style={{
+                  background: 'linear-gradient(135deg, #fff 0%, #888 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Real-time<br />Order Book
+              </h2>
+              <p className="text-gray-400 text-lg max-w-md leading-relaxed">
+                Bid/Ask depth visualization from concentrated liquidity pools.
+                See exactly where the liquidity sits.
+              </p>
+              <div className="mt-8 flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-[#627eea] flex items-center justify-center text-sm font-bold">Ξ</div>
-                  <span className="font-semibold">ETH/USDC</span>
-                  <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-500">V3</span>
+                  <span className="w-3 h-3 rounded-full bg-green-500 shadow-lg shadow-green-500/50" />
+                  <span className="text-sm text-gray-400">Bids</span>
                 </div>
-                <span className="text-xs text-gray-500">Live</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-red-500 shadow-lg shadow-red-500/50" />
+                  <span className="text-sm text-gray-400">Asks</span>
+                </div>
               </div>
+            </div>
 
-              <div className="space-y-1">
-                {asks.slice(0, 6).reverse().map((t, i) => (
-                  <div key={`a-${i}`} className="relative h-8 flex items-center text-sm font-mono">
-                    <div
-                      className="absolute left-0 h-full bg-red-500/15 rounded-r transition-all duration-500"
-                      style={{ width: `${(t.liquidity / maxLiq) * 100}%`, transitionDelay: `${i * 50}ms` }}
-                    />
-                    <div className="relative flex justify-between w-full px-3">
-                      <span className="text-red-400">${t.price.toFixed(2)}</span>
-                      <span className="text-gray-500">{formatK(t.liquidity)}</span>
+            {/* Right: 3D Order Book Card */}
+            <div
+              className="transition-all duration-500"
+              style={{
+                opacity: Math.min(1, section1Progress * 2),
+                transform: `
+                  perspective(1000px)
+                  rotateY(${(1 - Math.min(1, section1Progress * 1.5)) * -15}deg)
+                  rotateX(${(1 - Math.min(1, section1Progress * 1.5)) * 5}deg)
+                  translateX(${(1 - Math.min(1, section1Progress * 2)) * 100}px)
+                  scale(${0.9 + Math.min(1, section1Progress * 1.5) * 0.1})
+                `,
+              }}
+            >
+              <div className="bg-gradient-to-br from-[#111] to-[#0a0a0a] border border-[#222] rounded-2xl p-6 shadow-2xl shadow-black/50 backdrop-blur-xl">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#627eea] to-[#3b5998] flex items-center justify-center text-lg font-bold shadow-lg shadow-[#627eea]/30">Ξ</div>
+                    <div>
+                      <span className="font-semibold text-lg">ETH/USDC</span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">V3</span>
+                        <span className="text-xs text-gray-500">Uniswap</span>
+                      </div>
                     </div>
                   </div>
-                ))}
-                <div className="h-10 flex items-center justify-center text-lg font-bold text-white border-y border-[#1a1a1a] my-1">
-                  $2,847.32
-                </div>
-                {bids.slice(0, 6).map((t, i) => (
-                  <div key={`b-${i}`} className="relative h-8 flex items-center text-sm font-mono">
-                    <div
-                      className="absolute right-0 h-full bg-green-500/15 rounded-l transition-all duration-500"
-                      style={{ width: `${(t.liquidity / maxLiq) * 100}%`, transitionDelay: `${i * 50}ms` }}
-                    />
-                    <div className="relative flex justify-between w-full px-3">
-                      <span className="text-green-500">${t.price.toFixed(2)}</span>
-                      <span className="text-gray-500">{formatK(t.liquidity)}</span>
-                    </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs text-gray-500">Live</span>
                   </div>
+                </div>
+
+                <div className="space-y-1">
+                  {asks.slice(0, 5).reverse().map((t, i) => (
+                    <div key={`a-${i}`} className="relative h-9 flex items-center text-sm font-mono rounded-lg overflow-hidden">
+                      <div
+                        className="absolute left-0 h-full bg-gradient-to-r from-red-500/20 to-red-500/5 transition-all duration-500"
+                        style={{
+                          width: `${(t.liquidity / maxLiq) * 100}%`,
+                          transitionDelay: `${i * 50}ms`,
+                        }}
+                      />
+                      <div className="relative flex justify-between w-full px-3">
+                        <span className="text-red-400">${t.price.toFixed(2)}</span>
+                        <span className="text-gray-500">{formatK(t.liquidity)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="h-12 flex items-center justify-center text-xl font-bold text-white border-y border-[#222] my-2 bg-gradient-to-r from-transparent via-white/5 to-transparent">
+                    $2,847.32
+                  </div>
+                  {bids.slice(0, 5).map((t, i) => (
+                    <div key={`b-${i}`} className="relative h-9 flex items-center text-sm font-mono rounded-lg overflow-hidden">
+                      <div
+                        className="absolute right-0 h-full bg-gradient-to-l from-green-500/20 to-green-500/5 transition-all duration-500"
+                        style={{
+                          width: `${(t.liquidity / maxLiq) * 100}%`,
+                          transitionDelay: `${i * 50}ms`,
+                        }}
+                      />
+                      <div className="relative flex justify-between w-full px-3">
+                        <span className="text-green-500">${t.price.toFixed(2)}</span>
+                        <span className="text-gray-500">{formatK(t.liquidity)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 2: Tick Distribution */}
+        <div
+          className="absolute inset-0 flex items-center justify-center transition-all duration-300"
+          style={{
+            opacity: section2Progress > 0.1 && section2Progress < 0.9 ? 1 : section2Progress <= 0.1 ? section2Progress * 10 : 1 - (section2Progress - 0.9) * 10,
+            transform: `
+              perspective(1200px)
+              translateZ(${section2Progress < 0.1 ? (0.1 - section2Progress) * 500 : section2Progress > 0.9 ? -(section2Progress - 0.9) * 500 : 0}px)
+              scale(${section2Progress < 0.1 ? 0.8 + section2Progress * 2 : section2Progress > 0.9 ? 1 - (section2Progress - 0.9) : 1})
+            `,
+            pointerEvents: section2Progress < 0.1 || section2Progress > 0.9 ? 'none' : 'auto',
+          }}
+        >
+          <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left: 3D Bar Chart */}
+            <div
+              className="order-2 lg:order-1 transition-all duration-500"
+              style={{
+                transform: `
+                  perspective(1000px)
+                  rotateY(${section2Progress > 0.1 ? Math.min(1, (section2Progress - 0.1) * 2) * 5 : 0}deg)
+                  rotateX(${section2Progress > 0.1 ? Math.min(1, (section2Progress - 0.1) * 2) * -3 : 0}deg)
+                `,
+              }}
+            >
+              <div className="bg-gradient-to-br from-[#111] to-[#0a0a0a] border border-[#222] rounded-2xl p-6 shadow-2xl shadow-black/50">
+                <div className="h-72 flex items-end gap-1 perspective-[1000px]">
+                  {ticks.slice(0, 40).map((t, i) => {
+                    const h = (t.liquidity / maxLiq) * 100;
+                    const isVisible = section2Progress > 0.2;
+                    return (
+                      <div
+                        key={i}
+                        className="flex-1 rounded-t transition-all duration-700 transform-gpu"
+                        style={{
+                          height: isVisible ? `${h}%` : '0%',
+                          background: t.side === 'bid'
+                            ? `linear-gradient(to top, rgba(34, 197, 94, 0.8), rgba(34, 197, 94, 0.3))`
+                            : `linear-gradient(to top, rgba(239, 68, 68, 0.8), rgba(239, 68, 68, 0.3))`,
+                          boxShadow: isVisible && h > 50
+                            ? `0 0 20px ${t.side === 'bid' ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'}`
+                            : 'none',
+                          transitionDelay: `${i * 15}ms`,
+                          transform: `rotateX(${isVisible ? 0 : -90}deg)`,
+                          transformOrigin: 'bottom',
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between text-sm text-gray-500 mt-4 px-2">
+                  <span>-10%</span>
+                  <span className="text-green-500 font-medium">Current Price</span>
+                  <span>+10%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Text */}
+            <div className="order-1 lg:order-2">
+              <span className="text-green-500 font-mono text-sm tracking-widest">02</span>
+              <h2
+                className="text-5xl lg:text-6xl font-bold mt-4 mb-6 leading-tight"
+                style={{
+                  background: 'linear-gradient(135deg, #fff 0%, #888 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Tick<br />Distribution
+              </h2>
+              <p className="text-gray-400 text-lg max-w-md leading-relaxed">
+                Visualize liquidity concentration across price ranges in V3/V4 pools.
+              </p>
+              <ul className="mt-8 space-y-4 text-gray-400">
+                {['Each bar = one price tick', 'Height = liquidity depth', 'Real-time chain updates'].map((text, i) => (
+                  <li
+                    key={i}
+                    className="flex items-center gap-3 transition-all duration-500"
+                    style={{
+                      opacity: section2Progress > 0.3 + i * 0.1 ? 1 : 0,
+                      transform: `translateX(${section2Progress > 0.3 + i * 0.1 ? 0 : 20}px)`,
+                    }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-lg shadow-green-500/50" />
+                    {text}
+                  </li>
                 ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Section 3: Heatmap */}
+        <div
+          className="absolute inset-0 flex items-center justify-center transition-all duration-300"
+          style={{
+            opacity: section3Progress > 0.1 ? 1 : section3Progress * 10,
+            transform: `
+              perspective(1200px)
+              translateZ(${section3Progress < 0.1 ? (0.1 - section3Progress) * 500 : 0}px)
+              scale(${section3Progress < 0.1 ? 0.8 + section3Progress * 2 : 1})
+            `,
+            pointerEvents: section3Progress < 0.1 ? 'none' : 'auto',
+          }}
+        >
+          <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left: Text */}
+            <div>
+              <span className="text-green-500 font-mono text-sm tracking-widest">03</span>
+              <h2
+                className="text-5xl lg:text-6xl font-bold mt-4 mb-6 leading-tight"
+                style={{
+                  background: 'linear-gradient(135deg, #fff 0%, #888 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
+                Depth<br />Heatmap
+              </h2>
+              <p className="text-gray-400 text-lg max-w-md leading-relaxed">
+                Visual intensity mapping of liquidity density.
+                Spot concentration zones instantly.
+              </p>
+              <div className="mt-8">
+                <div className="flex items-center gap-4">
+                  <div className="h-4 w-40 rounded-full bg-gradient-to-r from-[#0a2010] via-green-500 to-green-300 shadow-lg shadow-green-500/20" />
+                  <span className="text-sm text-gray-400">Intensity</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Right: 3D Heatmap Grid */}
+            <div
+              className="transition-all duration-500"
+              style={{
+                transform: `
+                  perspective(1000px)
+                  rotateY(${section3Progress > 0.2 ? -8 : 0}deg)
+                  rotateX(${section3Progress > 0.2 ? 5 : 0}deg)
+                `,
+              }}
+            >
+              <div className="bg-gradient-to-br from-[#111] to-[#0a0a0a] border border-[#222] rounded-2xl p-6 shadow-2xl shadow-black/50">
+                <div className="grid grid-cols-8 gap-2">
+                  {ticks.slice(0, 32).map((t, i) => {
+                    const intensity = t.liquidity / maxLiq;
+                    const color = t.side === 'bid' ? '34, 197, 94' : '239, 68, 68';
+                    const isVisible = section3Progress > 0.3;
+                    return (
+                      <div
+                        key={i}
+                        className="aspect-square rounded-xl transition-all duration-500 transform-gpu"
+                        style={{
+                          backgroundColor: `rgba(${color}, ${isVisible ? 0.15 + intensity * 0.6 : 0})`,
+                          boxShadow: isVisible && intensity > 0.5
+                            ? `0 0 30px rgba(${color}, 0.5), inset 0 0 20px rgba(${color}, 0.2)`
+                            : 'none',
+                          transform: `
+                            scale(${isVisible ? 1 : 0.5})
+                            translateZ(${isVisible ? intensity * 20 : 0}px)
+                          `,
+                          opacity: isVisible ? 1 : 0,
+                          transitionDelay: `${i * 25}ms`,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+                <div className="mt-6 flex items-center justify-between text-xs text-gray-500">
+                  <span>Low</span>
+                  <span>High</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Scroll hint */}
-        {activeSection === 0 && (
-          <button
-            onClick={() => scrollToSection(1)}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-gray-500 hover:text-white transition-colors"
-          >
-            <ChevronDown size={32} />
-          </button>
-        )}
-      </section>
-
-      {/* Section 2: Tick Distribution */}
-      <section
-        ref={sectionRefs[1]}
-        className="min-h-screen flex items-center justify-center py-20 bg-[#080808]"
-      >
-        <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left: Visualization */}
-          <div className={`order-2 lg:order-1 transition-all duration-700 delay-200 ${activeSection >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10'}`}>
-            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-6 shadow-2xl">
-              <div className="h-64 flex items-end gap-1">
-                {ticks.slice(0, 40).map((t, i) => {
-                  const h = (t.liquidity / maxLiq) * 100;
-                  const isActive = activeSection >= 1;
-                  return (
-                    <div
-                      key={i}
-                      className={`flex-1 rounded-t transition-all duration-500 ${
-                        t.side === 'bid' ? 'bg-green-500' : 'bg-red-500'
-                      }`}
-                      style={{
-                        height: isActive ? `${h}%` : '0%',
-                        opacity: isActive ? 0.6 + (h / 100) * 0.4 : 0,
-                        transitionDelay: `${i * 20}ms`
-                      }}
-                    />
-                  );
-                })}
+        {/* Progress indicator */}
+        <div className="fixed right-8 top-1/2 -translate-y-1/2 z-50 hidden lg:flex flex-col gap-4">
+          {[0, 1, 2].map((i) => {
+            const sectionProgress = i === 0 ? section1Progress : i === 1 ? section2Progress : section3Progress;
+            const isActive = sectionProgress > 0.2 && sectionProgress < 0.8;
+            return (
+              <div key={i} className="relative">
+                <div
+                  className={`w-2 h-2 rounded-full transition-all duration-300 ${isActive ? 'bg-green-500 scale-150' : 'bg-gray-600'}`}
+                  style={{
+                    boxShadow: isActive ? '0 0 20px rgba(34, 197, 94, 0.8)' : 'none',
+                  }}
+                />
               </div>
-              <div className="flex justify-between text-sm text-gray-500 mt-4 px-2">
-                <span>-10%</span>
-                <span className="text-green-500">Current Price</span>
-                <span>+10%</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Text */}
-          <div className={`order-1 lg:order-2 transition-all duration-700 ${activeSection >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
-            <span className="text-green-500 font-mono text-sm">{sections[1].number}</span>
-            <h2 className="text-4xl lg:text-5xl font-bold mt-2 mb-4">{sections[1].title}</h2>
-            <p className="text-gray-400 text-lg max-w-md">{sections[1].subtitle}</p>
-            <ul className="mt-8 space-y-3 text-gray-400">
-              <li className="flex items-center gap-3">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                Each bar represents a price tick
-              </li>
-              <li className="flex items-center gap-3">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                Height shows liquidity depth
-              </li>
-              <li className="flex items-center gap-3">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                Real-time updates from chain
-              </li>
-            </ul>
-          </div>
+            );
+          })}
         </div>
 
-        {/* Scroll hint */}
-        {activeSection === 1 && (
-          <button
-            onClick={() => scrollToSection(2)}
-            className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-gray-500 hover:text-white transition-colors"
-          >
-            <ChevronDown size={32} />
-          </button>
-        )}
-      </section>
-
-      {/* Section 3: Heatmap */}
-      <section
-        ref={sectionRefs[2]}
-        className="min-h-screen flex items-center justify-center py-20"
-      >
-        <div className="max-w-6xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center">
-          {/* Left: Text */}
-          <div className={`transition-all duration-700 ${activeSection >= 2 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-10'}`}>
-            <span className="text-green-500 font-mono text-sm">{sections[2].number}</span>
-            <h2 className="text-4xl lg:text-5xl font-bold mt-2 mb-4">{sections[2].title}</h2>
-            <p className="text-gray-400 text-lg max-w-md">{sections[2].subtitle}</p>
-            <div className="mt-8">
-              <div className="flex items-center gap-3">
-                <div className="h-3 w-32 rounded bg-gradient-to-r from-green-900 via-green-500 to-green-300" />
-                <span className="text-sm text-gray-400">Liquidity intensity</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right: Visualization */}
-          <div className={`transition-all duration-700 delay-200 ${activeSection >= 2 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
-            <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-6 shadow-2xl">
-              <div className="grid grid-cols-8 gap-2">
-                {ticks.slice(0, 32).map((t, i) => {
-                  const intensity = t.liquidity / maxLiq;
-                  const color = t.side === 'bid' ? '34, 197, 94' : '239, 68, 68';
-                  const isActive = activeSection >= 2;
-                  return (
-                    <div
-                      key={i}
-                      className="aspect-square rounded-lg transition-all duration-300"
-                      style={{
-                        backgroundColor: `rgba(${color}, ${isActive ? 0.2 + intensity * 0.6 : 0})`,
-                        boxShadow: isActive && intensity > 0.5 ? `0 0 20px rgba(${color}, 0.5)` : 'none',
-                        transform: isActive ? 'scale(1)' : 'scale(0.8)',
-                        opacity: isActive ? 1 : 0,
-                        transitionDelay: `${i * 30}ms`,
-                      }}
-                    />
-                  );
-                })}
-              </div>
-              <div className="mt-6 flex items-center justify-between text-xs text-gray-500">
-                <span>Low liquidity</span>
-                <span>High liquidity</span>
-              </div>
+        {/* Scroll hint at bottom */}
+        <div
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 transition-opacity duration-500"
+          style={{ opacity: scrollProgress < 0.1 ? 1 : 0 }}
+        >
+          <div className="flex flex-col items-center gap-2 text-gray-500">
+            <span className="text-xs">Scroll to explore</span>
+            <div className="w-6 h-10 rounded-full border-2 border-gray-600 p-1">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-bounce mx-auto" />
             </div>
           </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
