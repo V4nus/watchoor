@@ -425,23 +425,23 @@ export default function TradePanel({
         // Uniswap Universal Router: two-step approval via Permit2
         const sellAmountWei = uniswapQuote?.sellAmount || '0';
 
-        // Step 1: Check if Token -> Permit2 needs approval
-        const tokenAllowance = allowanceTokenToPermit2 as bigint | undefined;
-        if (!tokenAllowance || tokenAllowance < BigInt(sellAmountWei)) {
-          // Approve Token to Permit2
+        // Step 1: Approve Token to Permit2 (if needed)
+        if (needsTokenToPermit2Approval) {
+          console.log('Step 1: Approving Token to Permit2...');
           await writeContractAsync({
             address: sellTokenAddress as `0x${string}`,
             abi: erc20Abi,
             functionName: 'approve',
             args: [permit2Address, maxUint256],
           });
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 3000));
           await refetchAllowanceTokenToPermit2();
+          console.log('Step 1 complete');
         }
 
-        // Step 2: Check if Permit2 -> Universal Router needs approval
-        if (!allowancePermit2ToRouter || allowancePermit2ToRouter < BigInt(sellAmountWei)) {
-          // Approve Universal Router on Permit2
+        // Step 2: Approve Universal Router on Permit2 (if needed)
+        if (needsPermit2ToRouterApproval) {
+          console.log('Step 2: Approving Universal Router on Permit2...');
           await writeContractAsync({
             address: permit2Address,
             abi: PERMIT2_ABI,
@@ -453,10 +453,12 @@ export default function TradePanel({
               maxExpiration,
             ],
           });
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          await new Promise(resolve => setTimeout(resolve, 3000));
           await refetchPermit2Allowance();
+          console.log('Step 2 complete');
         }
 
+        // Final refresh
         await refetchAllowanceUniswap();
       }
     } catch (error) {
