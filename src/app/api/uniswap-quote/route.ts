@@ -41,16 +41,19 @@ const WETH: Record<number, `0x${string}`> = {
 // Native token address placeholder
 const NATIVE_TOKEN = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
-// QuoterV2 ABI for quoteExactInputSingle
+// QuoterV2 ABI
 const QUOTER_ABI = parseAbi([
   'function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)',
+  'function quoteExactInput(bytes path, uint256 amountIn) external returns (uint256 amountOut, uint160[] sqrtPriceX96AfterList, uint32[] initializedTicksCrossedList, uint256 gasEstimate)',
 ]);
 
-// SwapRouter02 ABI
+// SwapRouter02 ABI - using multicall with deadline for all swaps
 const SWAP_ROUTER_ABI = parseAbi([
   'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) external payable returns (uint256 amountOut)',
+  'function exactInput((bytes path, address recipient, uint256 amountIn, uint256 amountOutMinimum)) external payable returns (uint256 amountOut)',
   'function multicall(uint256 deadline, bytes[] calldata data) external payable returns (bytes[] memory)',
   'function unwrapWETH9(uint256 amountMinimum, address recipient) external payable',
+  'function refundETH() external payable',
 ]);
 
 // Common pool fees to try
@@ -96,8 +99,19 @@ export async function GET(request: NextRequest) {
     const tokenOut = isNativeOut ? WETH[chainId] : buyToken as `0x${string}`;
 
     // Try different pool fees to find the best quote
-    let bestQuote: { amountOut: bigint; fee: number; gasEstimate: bigint } | null = null;
+    // First try direct path, then try multi-hop through WETH
+    let bestQuote: {
+      amountOut: bigint;
+      fee: number;
+      gasEstimate: bigint;
+      isMultiHop: boolean;
+      hopFees?: [number, number];
+    } | null = null;
 
+    const weth = WETH[chainId];
+    const isWethInvolved = tokenIn.toLowerCase() === weth.toLowerCase() || tokenOut.toLowerCase() === weth.toLowerCase();
+
+    // Try direct path first
     for (const fee of POOL_FEES) {
       try {
         const result = await client.simulateContract({
@@ -116,11 +130,38 @@ export async function GET(request: NextRequest) {
         const [amountOut, , , gasEstimate] = result.result as [bigint, bigint, number, bigint];
 
         if (!bestQuote || amountOut > bestQuote.amountOut) {
-          bestQuote = { amountOut, fee, gasEstimate };
+          bestQuote = { amountOut, fee, gasEstimate, isMultiHop: false };
         }
       } catch {
         // Pool with this fee doesn't exist or has insufficient liquidity
         continue;
+      }
+    }
+
+    // If no direct path found and WETH is not already involved, try multi-hop through WETH
+    if (!bestQuote && !isWethInvolved) {
+      for (const fee1 of POOL_FEES) {
+        for (const fee2 of POOL_FEES) {
+          try {
+            // Build path: tokenIn -> fee1 -> WETH -> fee2 -> tokenOut
+            const path = encodePath([tokenIn, weth, tokenOut], [fee1, fee2]);
+
+            const result = await client.simulateContract({
+              address: QUOTER_V2[chainId],
+              abi: QUOTER_ABI,
+              functionName: 'quoteExactInput',
+              args: [path, BigInt(sellAmount)],
+            });
+
+            const [amountOut, , , gasEstimate] = result.result as [bigint, bigint[], number[], bigint];
+
+            if (!bestQuote || amountOut > bestQuote.amountOut) {
+              bestQuote = { amountOut, fee: fee1, gasEstimate, isMultiHop: true, hopFees: [fee1, fee2] };
+            }
+          } catch {
+            continue;
+          }
+        }
       }
     }
 
@@ -135,45 +176,20 @@ export async function GET(request: NextRequest) {
     const minAmountOut = bestQuote.amountOut * BigInt(10000 - slippageBps) / BigInt(10000);
 
     // Build the swap calldata for SwapRouter02
+    // Always use multicall to set deadline properly
     const deadline = Math.floor(Date.now() / 1000) + 1800; // 30 minutes
 
     let data: `0x${string}`;
+    const multicallData: `0x${string}`[] = [];
 
-    if (isNativeOut) {
-      // Token -> ETH: exactInputSingle to router, then unwrapWETH9
-      // Use multicall to combine the two operations
+    if (isNativeIn) {
+      // ETH -> Token: exactInputSingle with WETH as tokenIn
+      // Router will auto-wrap ETH when value is sent
       const swapCalldata = encodeFunctionData({
         abi: SWAP_ROUTER_ABI,
         functionName: 'exactInputSingle',
         args: [{
-          tokenIn,
-          tokenOut, // WETH
-          fee: bestQuote.fee,
-          recipient: SWAP_ROUTER_02[chainId], // Send WETH to router first
-          amountIn: BigInt(sellAmount),
-          amountOutMinimum: minAmountOut,
-          sqrtPriceLimitX96: BigInt(0),
-        }],
-      });
-
-      const unwrapCalldata = encodeFunctionData({
-        abi: SWAP_ROUTER_ABI,
-        functionName: 'unwrapWETH9',
-        args: [minAmountOut, takerAddress as `0x${string}`],
-      });
-
-      data = encodeFunctionData({
-        abi: SWAP_ROUTER_ABI,
-        functionName: 'multicall',
-        args: [BigInt(deadline), [swapCalldata, unwrapCalldata]],
-      });
-    } else {
-      // ETH -> Token or Token -> Token: simple exactInputSingle
-      data = encodeFunctionData({
-        abi: SWAP_ROUTER_ABI,
-        functionName: 'exactInputSingle',
-        args: [{
-          tokenIn: isNativeIn ? WETH[chainId] : tokenIn,
+          tokenIn: WETH[chainId],
           tokenOut,
           fee: bestQuote.fee,
           recipient: takerAddress as `0x${string}`,
@@ -182,7 +198,94 @@ export async function GET(request: NextRequest) {
           sqrtPriceLimitX96: BigInt(0),
         }],
       });
+      multicallData.push(swapCalldata);
+
+      // Refund any excess ETH
+      const refundCalldata = encodeFunctionData({
+        abi: SWAP_ROUTER_ABI,
+        functionName: 'refundETH',
+        args: [],
+      });
+      multicallData.push(refundCalldata);
+    } else if (isNativeOut) {
+      // Token -> ETH: swap to WETH then unwrap
+      if (bestQuote.isMultiHop && bestQuote.hopFees) {
+        // Multi-hop: Token -> WETH -> WETH (same, skip second hop)
+        const swapCalldata = encodeFunctionData({
+          abi: SWAP_ROUTER_ABI,
+          functionName: 'exactInputSingle',
+          args: [{
+            tokenIn,
+            tokenOut: WETH[chainId],
+            fee: bestQuote.fee,
+            recipient: SWAP_ROUTER_02[chainId],
+            amountIn: BigInt(sellAmount),
+            amountOutMinimum: minAmountOut,
+            sqrtPriceLimitX96: BigInt(0),
+          }],
+        });
+        multicallData.push(swapCalldata);
+      } else {
+        const swapCalldata = encodeFunctionData({
+          abi: SWAP_ROUTER_ABI,
+          functionName: 'exactInputSingle',
+          args: [{
+            tokenIn,
+            tokenOut: WETH[chainId],
+            fee: bestQuote.fee,
+            recipient: SWAP_ROUTER_02[chainId],
+            amountIn: BigInt(sellAmount),
+            amountOutMinimum: minAmountOut,
+            sqrtPriceLimitX96: BigInt(0),
+          }],
+        });
+        multicallData.push(swapCalldata);
+      }
+
+      const unwrapCalldata = encodeFunctionData({
+        abi: SWAP_ROUTER_ABI,
+        functionName: 'unwrapWETH9',
+        args: [minAmountOut, takerAddress as `0x${string}`],
+      });
+      multicallData.push(unwrapCalldata);
+    } else if (bestQuote.isMultiHop && bestQuote.hopFees) {
+      // Token -> Token via WETH: use exactInput with path
+      const path = encodePath([tokenIn, weth, tokenOut], bestQuote.hopFees);
+      const swapCalldata = encodeFunctionData({
+        abi: SWAP_ROUTER_ABI,
+        functionName: 'exactInput',
+        args: [{
+          path,
+          recipient: takerAddress as `0x${string}`,
+          amountIn: BigInt(sellAmount),
+          amountOutMinimum: minAmountOut,
+        }],
+      });
+      multicallData.push(swapCalldata);
+    } else {
+      // Token -> Token: simple exactInputSingle
+      const swapCalldata = encodeFunctionData({
+        abi: SWAP_ROUTER_ABI,
+        functionName: 'exactInputSingle',
+        args: [{
+          tokenIn,
+          tokenOut,
+          fee: bestQuote.fee,
+          recipient: takerAddress as `0x${string}`,
+          amountIn: BigInt(sellAmount),
+          amountOutMinimum: minAmountOut,
+          sqrtPriceLimitX96: BigInt(0),
+        }],
+      });
+      multicallData.push(swapCalldata);
     }
+
+    // Wrap everything in multicall with deadline
+    data = encodeFunctionData({
+      abi: SWAP_ROUTER_ABI,
+      functionName: 'multicall',
+      args: [BigInt(deadline), multicallData],
+    });
 
     // Calculate price
     const price = Number(bestQuote.amountOut) / Number(sellAmount);
@@ -206,4 +309,23 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// Helper: encode path for V3 swap
+// For single hop: [tokenIn, tokenOut] with [fee]
+// For multi-hop: [tokenIn, intermediate, tokenOut] with [fee1, fee2]
+function encodePath(tokens: `0x${string}`[], fees: number[]): `0x${string}` {
+  if (tokens.length !== fees.length + 1) {
+    throw new Error('Invalid path: tokens length must be fees length + 1');
+  }
+
+  let path = tokens[0].slice(2); // Remove 0x prefix from first token
+
+  for (let i = 0; i < fees.length; i++) {
+    // Encode fee as 3 bytes (6 hex chars)
+    const feeHex = ('000000' + fees[i].toString(16)).slice(-6);
+    path += feeHex + tokens[i + 1].slice(2);
+  }
+
+  return `0x${path}` as `0x${string}`;
 }
