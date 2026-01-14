@@ -267,7 +267,30 @@ export default function LiquidityDepth({
           setDepthData(null);
           setSimpleData(null);
         } else if (result.type === 'depth') {
-          const newData = result.data as DepthData;
+          let newData = result.data as DepthData;
+
+          // Filter out invalid data for V3 pools (same validation as V4)
+          // V3 API may return extreme price values from tick calculations
+          if (!isV4Pool && priceUsd > 0) {
+            const minValidPrice = priceUsd * 0.01; // Within 100x of current price
+            const maxValidPrice = priceUsd * 100;
+            const maxReasonableUSD = 1e12; // $1 trillion max
+
+            const isValidLevel = (level: { price: number; liquidityUSD: number }) =>
+              level.price > 0 &&
+              level.price >= minValidPrice &&
+              level.price <= maxValidPrice &&
+              isFinite(level.price) &&
+              level.liquidityUSD > 0 &&
+              level.liquidityUSD < maxReasonableUSD &&
+              isFinite(level.liquidityUSD);
+
+            newData = {
+              ...newData,
+              bids: newData.bids.filter(isValidLevel),
+              asks: newData.asks.filter(isValidLevel),
+            };
+          }
 
           // Detect changes for highlighting (Binance-style)
           if (!isInitialLoad.current) {
