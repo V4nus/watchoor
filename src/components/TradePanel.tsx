@@ -264,8 +264,13 @@ export default function TradePanel({
       setAggregator(selectedAggregator);
 
       if (selectedAggregator === 'uniswap' && isUniswapSupported(targetChainId)) {
-        // Use Uniswap for small trades
+        // Use Uniswap Universal Router for small trades
         try {
+          console.log('Fetching Uniswap quote for', tradeType, ':', {
+            sellToken,
+            buyToken,
+            sellAmount: amountWei,
+          });
           const uniswapResult = await getUniswapQuote({
             chainId: targetChainId,
             sellToken,
@@ -273,6 +278,12 @@ export default function TradePanel({
             sellAmount: amountWei,
             takerAddress: address,
             slippageBps,
+          });
+          console.log('Uniswap quote result:', {
+            to: uniswapResult.to,
+            universalRouter: uniswapResult.universalRouter,
+            sellAmount: uniswapResult.sellAmount,
+            buyAmount: uniswapResult.buyAmount,
           });
           setUniswapQuote(uniswapResult);
           setQuote(null);
@@ -687,6 +698,14 @@ export default function TradePanel({
 
   // Unified trade handler - routes to appropriate aggregator
   const handleTrade = () => {
+    console.log('handleTrade called:', {
+      aggregator,
+      hasUniswapQuote: !!uniswapQuote,
+      hasCowQuote: !!quote,
+      tradeType,
+      uniswapTo: uniswapQuote?.to,
+      uniswapUniversalRouter: uniswapQuote?.universalRouter,
+    });
     if (aggregator === 'uniswap' && uniswapQuote) {
       handleUniswapTrade();
     } else if (quote) {
