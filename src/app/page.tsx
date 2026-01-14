@@ -171,56 +171,57 @@ const getPoolLogo = (symbol: string): string => {
 const ALL_POOLS = [
   // Base pools (10)
   {
-    rank: 1, symbol: 'DEGEN', name: 'Degen', pair: 'DEGEN/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 1, symbol: 'PING', name: 'Ping', pair: 'PING/ETH', chain: 'base', chainLabel: 'Base',
+    poolAddress: '0x49ed4b143c212c372867a4f64b2760e32602ea1a8ee4fa6172b01f81811f134b',
+    logo: 'https://dd.dexscreener.com/ds-data/tokens/base/0xb7e04DEE3Ee60F5990Ea34C4E5Cc816ac87E8e63.png', dex: 'uniswap', version: 'V4',
+    price: 0.05246, change24h: 12.5, volume24h: 8500000, liquidity: 2800000, mcap: 52000000, liquidityRatio: 5.4,
+  },
+  {
+    rank: 2, symbol: 'DEGEN', name: 'Degen', pair: 'DEGEN/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0xc9034c3e7f58003e6ae0c8438e7c8f4598d5acaa',
     logo: getPoolLogo('DEGEN'), dex: 'uniswap', version: 'V3',
     price: 0.0089, change24h: -5.2, volume24h: 12300000, liquidity: 8900000, mcap: 890000000, liquidityRatio: 1.0,
   },
   {
-    rank: 2, symbol: 'BRETT', name: 'Brett', pair: 'BRETT/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 3, symbol: 'BRETT', name: 'Brett', pair: 'BRETT/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0x76bf0abd20f1e0155ce40a62615a90a709a6c3d8',
     logo: getPoolLogo('BRETT'), dex: 'uniswap', version: 'V3',
     price: 0.156, change24h: 8.7, volume24h: 9800000, liquidity: 15200000, mcap: 1500000000, liquidityRatio: 1.01,
   },
   {
-    rank: 3, symbol: 'TOSHI', name: 'Toshi', pair: 'TOSHI/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 4, symbol: 'TOSHI', name: 'Toshi', pair: 'TOSHI/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0x0', logo: getPoolLogo('TOSHI'), dex: 'uniswap', version: 'V3',
     price: 0.00032, change24h: 15.3, volume24h: 4500000, liquidity: 3200000, mcap: 320000000, liquidityRatio: 1.0,
   },
   {
-    rank: 4, symbol: 'AERO', name: 'Aerodrome', pair: 'AERO/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 5, symbol: 'AERO', name: 'Aerodrome', pair: 'AERO/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0x0', logo: getPoolLogo('AERO'), dex: 'aerodrome', version: 'V2',
     price: 1.25, change24h: 3.2, volume24h: 18000000, liquidity: 45000000, mcap: 750000000, liquidityRatio: 6.0,
   },
   {
-    rank: 5, symbol: 'VIRTUAL', name: 'Virtual Protocol', pair: 'VIRTUAL/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 6, symbol: 'VIRTUAL', name: 'Virtual Protocol', pair: 'VIRTUAL/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0x0', logo: getPoolLogo('VIRTUAL'), dex: 'uniswap', version: 'V3',
     price: 2.85, change24h: 12.4, volume24h: 25000000, liquidity: 18000000, mcap: 2800000000, liquidityRatio: 0.64,
   },
   {
-    rank: 6, symbol: 'WELL', name: 'Moonwell', pair: 'WELL/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 7, symbol: 'WELL', name: 'Moonwell', pair: 'WELL/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0x0', logo: getPoolLogo('WELL'), dex: 'uniswap', version: 'V3',
     price: 0.045, change24h: -2.8, volume24h: 3200000, liquidity: 8500000, mcap: 180000000, liquidityRatio: 4.7,
   },
   {
-    rank: 7, symbol: 'EXTRA', name: 'Extra Finance', pair: 'EXTRA/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 8, symbol: 'EXTRA', name: 'Extra Finance', pair: 'EXTRA/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0x0', logo: getPoolLogo('EXTRA'), dex: 'uniswap', version: 'V3',
     price: 0.12, change24h: 5.6, volume24h: 1800000, liquidity: 4200000, mcap: 45000000, liquidityRatio: 9.3,
   },
   {
-    rank: 8, symbol: 'BALD', name: 'Bald', pair: 'BALD/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 9, symbol: 'BALD', name: 'Bald', pair: 'BALD/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0x0', logo: getPoolLogo('BALD'), dex: 'uniswap', version: 'V2',
     price: 0.0023, change24h: -12.5, volume24h: 850000, liquidity: 1200000, mcap: 23000000, liquidityRatio: 5.2,
   },
   {
-    rank: 9, symbol: 'BASED', name: 'Based', pair: 'BASED/WETH', chain: 'base', chainLabel: 'Base',
+    rank: 10, symbol: 'BASED', name: 'Based', pair: 'BASED/WETH', chain: 'base', chainLabel: 'Base',
     poolAddress: '0x0', logo: getPoolLogo('BASED'), dex: 'uniswap', version: 'V2',
     price: 0.00089, change24h: 3.4, volume24h: 620000, liquidity: 980000, mcap: 8900000, liquidityRatio: 11.0,
-  },
-  {
-    rank: 10, symbol: 'cbBTC', name: 'Coinbase BTC', pair: 'cbBTC/WETH', chain: 'base', chainLabel: 'Base',
-    poolAddress: '0x0', logo: getPoolLogo('cbBTC'), dex: 'uniswap', version: 'V3',
-    price: 42500, change24h: 1.2, volume24h: 35000000, liquidity: 85000000, mcap: 4200000000, liquidityRatio: 2.0,
   },
   // BSC pools (10)
   {
