@@ -26,6 +26,7 @@ import {
   selectAggregator,
   COW_MIN_TRADE_USD,
   UNISWAP_ROUTER,
+  PERMIT2_ADDRESS,
   type UniswapQuote,
 } from '@/lib/uniswap';
 
@@ -156,15 +157,15 @@ export default function TradePanel({
     query: { enabled: !isSellTokenNative && !!address && !!VAULT_RELAYER[targetChainId] },
   });
 
-  // Allowance for Uniswap Router
-  const uniswapRouterAddress = UNISWAP_ROUTER[targetChainId];
+  // Allowance for Uniswap Universal Router (via Permit2)
+  // Universal Router uses Permit2 for token approvals
   const { data: allowanceUniswap, refetch: refetchAllowanceUniswap } = useReadContract({
     address: !isSellTokenNative ? sellTokenAddress as `0x${string}` : undefined,
     abi: erc20Abi,
     functionName: 'allowance',
-    args: address && uniswapRouterAddress ? [address, uniswapRouterAddress as `0x${string}`] : undefined,
+    args: address ? [address, PERMIT2_ADDRESS as `0x${string}`] : undefined,
     chainId: targetChainId,
-    query: { enabled: !isSellTokenNative && !!address && !!uniswapRouterAddress },
+    query: { enabled: !isSellTokenNative && !!address },
   });
 
   // Get decimals for input token
@@ -371,9 +372,11 @@ export default function TradePanel({
     if (!address || isSellTokenNative) return;
 
     // Determine which spender to approve based on aggregator
+    // For CoW: approve VAULT_RELAYER
+    // For Uniswap Universal Router: approve Permit2
     const spender = aggregator === 'cow'
       ? VAULT_RELAYER[targetChainId]
-      : uniswapRouterAddress as `0x${string}`;
+      : PERMIT2_ADDRESS as `0x${string}`;
 
     if (!spender) return;
 
