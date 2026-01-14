@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, encodeFunctionData, parseAbi, type Chain } from 'viem';
+import { createPublicClient, http, encodeAbiParameters, parseAbiParameters, encodeFunctionData, parseAbi, type Chain, concat, toHex, pad } from 'viem';
 import { mainnet, base, arbitrum, polygon, optimism } from 'viem/chains';
 
 // Chain configs
@@ -49,6 +49,13 @@ const QUOTER_ABI = parseAbi([
 // Common pool fees to try
 const POOL_FEES = [500, 3000, 10000]; // 0.05%, 0.3%, 1%
 
+// Universal Router command codes
+const COMMANDS = {
+  V3_SWAP_EXACT_IN: 0x00,
+  WRAP_ETH: 0x0b,
+  UNWRAP_WETH: 0x0c,
+};
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
 
@@ -80,15 +87,13 @@ export async function GET(request: NextRequest) {
       transport: http(),
     });
 
-    // Convert native token to WETH
-    const tokenIn = sellToken.toLowerCase() === NATIVE_TOKEN.toLowerCase()
-      ? WETH[chainId]
-      : sellToken as `0x${string}`;
-    const tokenOut = buyToken.toLowerCase() === NATIVE_TOKEN.toLowerCase()
-      ? WETH[chainId]
-      : buyToken as `0x${string}`;
-
+    // Check if dealing with native token
     const isNativeIn = sellToken.toLowerCase() === NATIVE_TOKEN.toLowerCase();
+    const isNativeOut = buyToken.toLowerCase() === NATIVE_TOKEN.toLowerCase();
+
+    // Convert native token to WETH for quoting
+    const tokenIn = isNativeIn ? WETH[chainId] : sellToken as `0x${string}`;
+    const tokenOut = isNativeOut ? WETH[chainId] : buyToken as `0x${string}`;
 
     // Try different pool fees to find the best quote
     let bestQuote: { amountOut: bigint; fee: number; gasEstimate: bigint } | null = null;
@@ -130,34 +135,63 @@ export async function GET(request: NextRequest) {
     const minAmountOut = bestQuote.amountOut * BigInt(10000 - slippageBps) / BigInt(10000);
 
     // Build the swap calldata for Universal Router
-    // Command: V3_SWAP_EXACT_IN (0x00)
     const deadline = Math.floor(Date.now() / 1000) + 1800; // 30 minutes
 
     // Encode the path: tokenIn -> fee -> tokenOut
-    const path = encodePath([tokenIn, tokenOut], [bestQuote.fee]);
+    const path = encodePath(tokenIn, tokenOut, bestQuote.fee);
 
-    // Universal Router execute call
-    const commands = isNativeIn ? '0x0b00' : '0x00'; // WRAP_ETH + V3_SWAP_EXACT_IN or just V3_SWAP_EXACT_IN
-
+    // Build commands and inputs based on token types
+    let commands: `0x${string}`;
     let inputs: `0x${string}`[];
+
+    // Address constants for Universal Router
+    const MSG_SENDER = '0x0000000000000000000000000000000000000001' as `0x${string}`;
+    const ADDRESS_THIS = '0x0000000000000000000000000000000000000002' as `0x${string}`;
+
     if (isNativeIn) {
-      // WRAP_ETH input
+      // ETH -> Token: WRAP_ETH + V3_SWAP_EXACT_IN
+      commands = '0x0b00' as `0x${string}`;
+
+      // WRAP_ETH: recipient (ADDRESS_THIS), amount
       const wrapInput = encodeAbiParameters(
-        ['address', 'uint256'],
-        [UNIVERSAL_ROUTER[chainId], BigInt(sellAmount)]
+        parseAbiParameters('address recipient, uint256 amount'),
+        [ADDRESS_THIS, BigInt(sellAmount)]
       );
-      // V3_SWAP_EXACT_IN input
+
+      // V3_SWAP_EXACT_IN: recipient, amountIn, amountOutMin, path, payerIsUser
       const swapInput = encodeAbiParameters(
-        ['address', 'uint256', 'uint256', 'bytes', 'bool'],
+        parseAbiParameters('address recipient, uint256 amountIn, uint256 amountOutMin, bytes path, bool payerIsUser'),
         [takerAddress as `0x${string}`, BigInt(sellAmount), minAmountOut, path, false]
       );
+
       inputs = [wrapInput, swapInput];
-    } else {
-      // V3_SWAP_EXACT_IN input
+    } else if (isNativeOut) {
+      // Token -> ETH: V3_SWAP_EXACT_IN + UNWRAP_WETH
+      commands = '0x000c' as `0x${string}`;
+
+      // V3_SWAP_EXACT_IN: recipient (ADDRESS_THIS to receive WETH), amountIn, amountOutMin, path, payerIsUser
       const swapInput = encodeAbiParameters(
-        ['address', 'uint256', 'uint256', 'bytes', 'bool'],
+        parseAbiParameters('address recipient, uint256 amountIn, uint256 amountOutMin, bytes path, bool payerIsUser'),
+        [ADDRESS_THIS, BigInt(sellAmount), minAmountOut, path, true]
+      );
+
+      // UNWRAP_WETH: recipient, minAmount
+      const unwrapInput = encodeAbiParameters(
+        parseAbiParameters('address recipient, uint256 minAmount'),
+        [takerAddress as `0x${string}`, minAmountOut]
+      );
+
+      inputs = [swapInput, unwrapInput];
+    } else {
+      // Token -> Token: just V3_SWAP_EXACT_IN
+      commands = '0x00' as `0x${string}`;
+
+      // V3_SWAP_EXACT_IN: recipient, amountIn, amountOutMin, path, payerIsUser
+      const swapInput = encodeAbiParameters(
+        parseAbiParameters('address recipient, uint256 amountIn, uint256 amountOutMin, bytes path, bool payerIsUser'),
         [takerAddress as `0x${string}`, BigInt(sellAmount), minAmountOut, path, true]
       );
+
       inputs = [swapInput];
     }
 
@@ -165,7 +199,7 @@ export async function GET(request: NextRequest) {
     const data = encodeFunctionData({
       abi: parseAbi(['function execute(bytes commands, bytes[] inputs, uint256 deadline) external payable']),
       functionName: 'execute',
-      args: [commands as `0x${string}`, inputs, BigInt(deadline)],
+      args: [commands, inputs, BigInt(deadline)],
     });
 
     // Calculate price
@@ -181,7 +215,7 @@ export async function GET(request: NextRequest) {
       value: isNativeIn ? sellAmount : '0',
       estimatedGas: (bestQuote.gasEstimate * BigInt(150) / BigInt(100)).toString(), // 50% buffer
       fee: bestQuote.fee,
-      priceImpact: '0', // Would need more complex calculation
+      priceImpact: '0',
     });
   } catch (error) {
     console.error('Uniswap quote error:', error);
@@ -192,55 +226,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Helper: encode path for V3 swap
-function encodePath(tokens: `0x${string}`[], fees: number[]): `0x${string}` {
-  if (tokens.length !== fees.length + 1) {
-    throw new Error('Invalid path');
-  }
-
-  let path = tokens[0].toLowerCase();
-  for (let i = 0; i < fees.length; i++) {
-    path += fees[i].toString(16).padStart(6, '0');
-    path += tokens[i + 1].slice(2).toLowerCase();
-  }
-
-  return path as `0x${string}`;
-}
-
-// Helper: encode ABI parameters
-function encodeAbiParameters(types: string[], values: unknown[]): `0x${string}` {
-  // Simple encoding for our specific cases
-  let result = '0x';
-
-  for (let i = 0; i < types.length; i++) {
-    const type = types[i];
-    const value = values[i];
-
-    if (type === 'address') {
-      result += (value as string).slice(2).toLowerCase().padStart(64, '0');
-    } else if (type === 'uint256') {
-      result += (value as bigint).toString(16).padStart(64, '0');
-    } else if (type === 'bytes') {
-      const bytes = value as `0x${string}`;
-      const bytesWithoutPrefix = bytes.slice(2);
-      // Offset to bytes data
-      const offset = types.length * 32;
-      result += offset.toString(16).padStart(64, '0');
-      // Will append bytes data at the end
-    } else if (type === 'bool') {
-      result += (value ? '1' : '0').padStart(64, '0');
-    }
-  }
-
-  // Append bytes data if present
-  const bytesIndex = types.indexOf('bytes');
-  if (bytesIndex !== -1) {
-    const bytes = values[bytesIndex] as `0x${string}`;
-    const bytesWithoutPrefix = bytes.slice(2);
-    const length = bytesWithoutPrefix.length / 2;
-    result += length.toString(16).padStart(64, '0');
-    result += bytesWithoutPrefix.padEnd(Math.ceil(bytesWithoutPrefix.length / 64) * 64, '0');
-  }
-
-  return result as `0x${string}`;
+// Helper: encode path for V3 swap (tokenIn + fee + tokenOut)
+function encodePath(tokenIn: `0x${string}`, tokenOut: `0x${string}`, fee: number): `0x${string}` {
+  // Path encoding: address (20 bytes) + fee (3 bytes) + address (20 bytes)
+  const feeHex = pad(toHex(fee), { size: 3 });
+  return concat([tokenIn, feeHex, tokenOut]);
 }
