@@ -145,13 +145,26 @@ export default function TradePanel({
   // Check allowance for the sell token
   const sellTokenAddress = tradeType === 'buy' ? quoteTokenAddress : baseTokenAddress;
   const isSellTokenNative = sellTokenAddress === NATIVE_TOKEN_ADDRESS;
-  const { data: allowance, refetch: refetchAllowance } = useReadContract({
+
+  // Allowance for CoW Protocol
+  const { data: allowanceCow, refetch: refetchAllowanceCow } = useReadContract({
     address: !isSellTokenNative ? sellTokenAddress as `0x${string}` : undefined,
     abi: erc20Abi,
     functionName: 'allowance',
     args: address && VAULT_RELAYER[targetChainId] ? [address, VAULT_RELAYER[targetChainId]] : undefined,
     chainId: targetChainId,
     query: { enabled: !isSellTokenNative && !!address && !!VAULT_RELAYER[targetChainId] },
+  });
+
+  // Allowance for Uniswap Router
+  const uniswapRouterAddress = UNISWAP_ROUTER[targetChainId];
+  const { data: allowanceUniswap, refetch: refetchAllowanceUniswap } = useReadContract({
+    address: !isSellTokenNative ? sellTokenAddress as `0x${string}` : undefined,
+    abi: erc20Abi,
+    functionName: 'allowance',
+    args: address && uniswapRouterAddress ? [address, uniswapRouterAddress as `0x${string}`] : undefined,
+    chainId: targetChainId,
+    query: { enabled: !isSellTokenNative && !!address && !!uniswapRouterAddress },
   });
 
   // Get decimals for input token
@@ -323,13 +336,17 @@ export default function TradePanel({
   const hasQuote = quote !== null || uniswapQuote !== null;
 
   // Check if approval is needed (for CoW)
-  const needsApprovalCow = !isSellTokenNative && quote && allowance !== undefined
-    ? BigInt(allowance as bigint) < BigInt(quote.sellAmount)
+  const needsApprovalCow = !isSellTokenNative && quote && allowanceCow !== undefined
+    ? BigInt(allowanceCow as bigint) < BigInt(quote.sellAmount)
     : false;
 
-  // For Uniswap, we need to check allowance against the Universal Router
-  // We'll handle approval in the trade flow
-  const needsApproval = aggregator === 'cow' ? needsApprovalCow : false;
+  // Check if approval is needed (for Uniswap)
+  const needsApprovalUniswap = !isSellTokenNative && uniswapQuote && allowanceUniswap !== undefined
+    ? BigInt(allowanceUniswap as bigint) < BigInt(uniswapQuote.sellAmount)
+    : false;
+
+  // Use the appropriate approval check based on aggregator
+  const needsApproval = aggregator === 'cow' ? needsApprovalCow : needsApprovalUniswap;
 
   // Handle slider change
   const handleSliderChange = (percent: number) => {
@@ -351,7 +368,14 @@ export default function TradePanel({
 
   // Handle approval
   const handleApprove = async () => {
-    if (!quote || !address || isSellTokenNative) return;
+    if (!address || isSellTokenNative) return;
+
+    // Determine which spender to approve based on aggregator
+    const spender = aggregator === 'cow'
+      ? VAULT_RELAYER[targetChainId]
+      : uniswapRouterAddress as `0x${string}`;
+
+    if (!spender) return;
 
     setIsApproving(true);
     try {
@@ -361,12 +385,16 @@ export default function TradePanel({
         address: sellTokenAddress as `0x${string}`,
         abi: erc20Abi,
         functionName: 'approve',
-        args: [VAULT_RELAYER[targetChainId], maxUint256],
+        args: [spender, maxUint256],
       });
 
       // Wait a bit and refetch allowance
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await refetchAllowance();
+      if (aggregator === 'cow') {
+        await refetchAllowanceCow();
+      } else {
+        await refetchAllowanceUniswap();
+      }
     } catch (error) {
       console.error('Approval error:', error);
     } finally {
@@ -378,34 +406,10 @@ export default function TradePanel({
   const handleUniswapTrade = async () => {
     if (!uniswapQuote || !address) return;
 
-    setTradeStatus('signing');
+    setTradeStatus('submitting');
     setTradeError(null);
 
     try {
-      // For Uniswap, we need to check and approve the Universal Router if selling ERC20
-      if (!isSellTokenNative) {
-        const routerAddress = UNISWAP_ROUTER[targetChainId] as `0x${string}`;
-
-        // Simple approval flow - approve max
-        setTradeStatus('submitting');
-        const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
-
-        try {
-          await writeContractAsync({
-            address: sellTokenAddress as `0x${string}`,
-            abi: erc20Abi,
-            functionName: 'approve',
-            args: [routerAddress, maxUint256],
-          });
-          // Wait for approval to be mined
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } catch (approvalError) {
-          // If approval fails, it might already be approved, continue
-          console.log('Approval may already exist:', approvalError);
-        }
-      }
-
-      setTradeStatus('submitting');
 
       // Execute the swap directly on-chain
       const txHash = await sendTransactionAsync({
@@ -972,7 +976,7 @@ export default function TradePanel({
         ) : needsApproval ? (
           <button
             onClick={handleApprove}
-            disabled={isApproving || !quote}
+            disabled={isApproving || !hasQuote}
             className="w-full py-3.5 bg-[#58a6ff] hover:bg-[#58a6ff]/80 disabled:opacity-50 text-white text-base font-medium rounded transition-colors"
           >
             {isApproving ? t.trade.approving : `${t.trade.approve} ${tradeType === 'buy' ? quoteSymbol : baseSymbol}`}
