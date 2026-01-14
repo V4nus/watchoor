@@ -5,8 +5,37 @@ import { injected, walletConnect } from 'wagmi/connectors';
 // WalletConnect project ID - you should get your own at https://cloud.walletconnect.com
 const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'demo';
 
-// Multiple injected wallet connectors for better wallet detection
-// Each wallet will be auto-detected via EIP-6963
+// OKX Wallet connector using injected with custom target function
+const okxWallet = () => injected({
+  target() {
+    if (typeof window === 'undefined') return undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const provider = (window as any).okxwallet;
+    if (!provider) return undefined;
+    return {
+      id: 'okxWallet',
+      name: 'OKX Wallet',
+      provider,
+    };
+  },
+});
+
+// Binance Wallet connector using injected with custom target function
+const binanceWallet = () => injected({
+  target() {
+    if (typeof window === 'undefined') return undefined;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const provider = (window as any).BinanceChain;
+    if (!provider) return undefined;
+    return {
+      id: 'binanceWallet',
+      name: 'Binance Wallet',
+      provider,
+    };
+  },
+});
+
+// Wallet connectors configuration
 export const config = createConfig({
   chains: [mainnet, base, arbitrum, polygon, bsc],
   connectors: [
@@ -16,6 +45,10 @@ export const config = createConfig({
     injected({
       target: 'metaMask',
     }),
+    // OKX Wallet - uses window.okxwallet provider
+    okxWallet(),
+    // Binance Wallet - uses window.BinanceChain provider
+    binanceWallet(),
     // WalletConnect for mobile wallets
     walletConnect({ projectId }),
   ],
