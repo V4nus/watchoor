@@ -40,6 +40,20 @@ const NATIVE_SYMBOLS: Record<number, string> = {
   56: 'BNB',
 };
 
+// Block explorer URLs per chain
+const BLOCK_EXPLORERS: Record<number, string> = {
+  1: 'https://etherscan.io',
+  8453: 'https://basescan.org',
+  42161: 'https://arbiscan.io',
+  137: 'https://polygonscan.com',
+  10: 'https://optimistic.etherscan.io',
+};
+
+function getTxExplorerUrl(chainId: number, txHash: string): string {
+  const explorer = BLOCK_EXPLORERS[chainId] || 'https://etherscan.io';
+  return `${explorer}/tx/${txHash}`;
+}
+
 interface TradePanelProps {
   chainId: string;
   baseTokenAddress: string;
@@ -837,7 +851,7 @@ export default function TradePanel({
           <div className="bg-[#58a6ff]/10 border border-[#58a6ff]/30 rounded p-3">
             <div className="text-[#58a6ff] text-base font-medium mb-2 text-center flex items-center justify-center gap-2">
               <div className="w-4 h-4 border-2 border-[#58a6ff] border-t-transparent rounded-full animate-spin" />
-              {t.trade.waitingExecution}
+              {aggregator === 'uniswap' ? t.trade.txPending : t.trade.waitingExecution}
             </div>
             {tradeDetails && (
               <div className="text-sm space-y-1 mb-2">
@@ -851,16 +865,18 @@ export default function TradePanel({
                 </div>
               </div>
             )}
-            <div className="text-xs text-gray-500 text-center mb-2">
-              {t.trade.orderValid}
-            </div>
+            {aggregator === 'cow' && (
+              <div className="text-xs text-gray-500 text-center mb-2">
+                {t.trade.orderValid}
+              </div>
+            )}
             <a
-              href={getOrderExplorerUrl(targetChainId, orderId)}
+              href={aggregator === 'uniswap' ? getTxExplorerUrl(targetChainId, orderId) : getOrderExplorerUrl(targetChainId, orderId)}
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-[#58a6ff] hover:underline text-center"
             >
-              {t.trade.trackOrder} →
+              {aggregator === 'uniswap' ? t.trade.viewTx : t.trade.trackOrder} →
             </a>
           </div>
         )}
@@ -882,12 +898,12 @@ export default function TradePanel({
               </div>
             )}
             <a
-              href={getOrderExplorerUrl(targetChainId, orderId)}
+              href={aggregator === 'uniswap' ? getTxExplorerUrl(targetChainId, orderId) : getOrderExplorerUrl(targetChainId, orderId)}
               target="_blank"
               rel="noopener noreferrer"
               className="block text-sm text-[#58a6ff] hover:underline text-center"
             >
-              {t.trade.viewOrder} →
+              {aggregator === 'uniswap' ? t.trade.viewTx : t.trade.viewOrder} →
             </a>
           </div>
         )}

@@ -80,12 +80,14 @@ export interface Translations {
     signInWallet: string;
     submitting: string;
     waitingExecution: string;
+    txPending: string;
     tradeExecuted: string;
     sold: string;
     received: string;
     orderValid: string;
     trackOrder: string;
     viewOrder: string;
+    viewTx: string;
     poweredBy: string;
     // Slippage
     slippage: string;
@@ -223,12 +225,14 @@ export const translations: Record<Language, Translations> = {
       signInWallet: 'Sign in wallet...',
       submitting: 'Submitting...',
       waitingExecution: 'Waiting for execution...',
+      txPending: 'Transaction pending...',
       tradeExecuted: 'Trade Executed!',
       sold: 'Sold',
       received: 'Received',
       orderValid: 'Order valid for 5 min',
       trackOrder: 'Track order on CoW Explorer',
       viewOrder: 'View on CoW Explorer',
+      viewTx: 'View transaction',
       poweredBy: 'Powered by CoW Protocol',
       slippage: 'Slippage',
       slippageAuto: 'Auto',
@@ -353,12 +357,14 @@ export const translations: Record<Language, Translations> = {
       signInWallet: '지갑에서 서명하세요...',
       submitting: '제출 중...',
       waitingExecution: '실행 대기 중...',
+      txPending: '트랜잭션 처리 중...',
       tradeExecuted: '거래 완료!',
       sold: '매도',
       received: '수령',
       orderValid: '주문 유효시간 5분',
       trackOrder: 'CoW Explorer에서 주문 추적',
       viewOrder: 'CoW Explorer에서 보기',
+      viewTx: '트랜잭션 보기',
       poweredBy: 'Powered by CoW Protocol',
       slippage: '슬리피지',
       slippageAuto: '자동',
@@ -483,12 +489,14 @@ export const translations: Record<Language, Translations> = {
       signInWallet: 'ウォレットで署名してください...',
       submitting: '送信中...',
       waitingExecution: '実行待ち...',
+      txPending: 'トランザクション処理中...',
       tradeExecuted: '取引完了！',
       sold: '売却',
       received: '受取',
       orderValid: '注文有効期限 5分',
       trackOrder: 'CoW Explorerで注文を追跡',
       viewOrder: 'CoW Explorerで表示',
+      viewTx: 'トランザクションを表示',
       poweredBy: 'Powered by CoW Protocol',
       slippage: 'スリッページ',
       slippageAuto: '自動',
@@ -613,12 +621,14 @@ export const translations: Record<Language, Translations> = {
       signInWallet: 'Firmar en cartera...',
       submitting: 'Enviando...',
       waitingExecution: 'Esperando ejecución...',
+      txPending: 'Transacción pendiente...',
       tradeExecuted: '¡Operación Ejecutada!',
       sold: 'Vendido',
       received: 'Recibido',
       orderValid: 'Orden válida por 5 min',
       trackOrder: 'Rastrear orden en CoW Explorer',
       viewOrder: 'Ver en CoW Explorer',
+      viewTx: 'Ver transacción',
       poweredBy: 'Powered by CoW Protocol',
       slippage: 'Deslizamiento',
       slippageAuto: 'Auto',
@@ -743,12 +753,14 @@ export const translations: Record<Language, Translations> = {
       signInWallet: 'Assinar na carteira...',
       submitting: 'Enviando...',
       waitingExecution: 'Aguardando execução...',
+      txPending: 'Transação pendente...',
       tradeExecuted: 'Trade Executado!',
       sold: 'Vendido',
       received: 'Recebido',
       orderValid: 'Ordem válida por 5 min',
       trackOrder: 'Rastrear ordem no CoW Explorer',
       viewOrder: 'Ver no CoW Explorer',
+      viewTx: 'Ver transação',
       poweredBy: 'Powered by CoW Protocol',
       slippage: 'Slippage',
       slippageAuto: 'Auto',
@@ -873,12 +885,14 @@ export const translations: Record<Language, Translations> = {
       signInWallet: 'Подпишите в кошельке...',
       submitting: 'Отправка...',
       waitingExecution: 'Ожидание исполнения...',
+      txPending: 'Транзакция обрабатывается...',
       tradeExecuted: 'Сделка выполнена!',
       sold: 'Продано',
       received: 'Получено',
       orderValid: 'Ордер действителен 5 мин',
       trackOrder: 'Отследить ордер на CoW Explorer',
       viewOrder: 'Смотреть на CoW Explorer',
+      viewTx: 'Посмотреть транзакцию',
       poweredBy: 'Powered by CoW Protocol',
       slippage: 'Проскальзывание',
       slippageAuto: 'Авто',
