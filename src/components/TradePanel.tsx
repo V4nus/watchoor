@@ -222,6 +222,15 @@ export default function TradePanel({
     await refetchPermit2Allowance();
   };
 
+  // Refresh allowances when trade type changes (buy/sell uses different tokens)
+  useEffect(() => {
+    if (!isSellTokenNative && address) {
+      refetchAllowanceTokenToPermit2();
+      refetchPermit2Allowance();
+      refetchAllowanceCow();
+    }
+  }, [tradeType, sellTokenAddress, address, isSellTokenNative]);
+
   // Get decimals for input token
   const inputDecimals = tradeType === 'buy'
     ? (isQuoteNative ? 18 : (quoteDecimals as number) || 6)
