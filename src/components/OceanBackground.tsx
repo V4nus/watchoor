@@ -1,245 +1,334 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import * as THREE from 'three';
 
 export default function OceanBackground() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!containerRef.current) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    const container = containerRef.current;
 
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x0a1628, 0.002);
+
+    // Camera - low angle looking up at waves
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      2000
+    );
+    camera.position.set(0, 15, 60);
+    camera.lookAt(0, 20, 0);
+
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x0a1628, 1);
+    container.appendChild(renderer.domElement);
+
+    // Ocean geometry - large plane with many segments for wave detail
+    const oceanGeometry = new THREE.PlaneGeometry(400, 400, 256, 256);
+    oceanGeometry.rotateX(-Math.PI / 2);
+
+    // Store original positions for wave animation
+    const positions = oceanGeometry.attributes.position;
+    const originalY = new Float32Array(positions.count);
+    for (let i = 0; i < positions.count; i++) {
+      originalY[i] = positions.getY(i);
+    }
+
+    // Ocean material with custom shader for realistic water
+    const oceanMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBigWavesElevation: { value: 0.35 },
+        uBigWavesFrequency: { value: new THREE.Vector2(2, 1.5) },
+        uBigWavesSpeed: { value: 0.75 },
+        uSmallWavesElevation: { value: 0.15 },
+        uSmallWavesFrequency: { value: 3.0 },
+        uSmallWavesSpeed: { value: 0.2 },
+        uDepthColor: { value: new THREE.Color(0x061a30) },
+        uSurfaceColor: { value: new THREE.Color(0x1e90ff) },
+        uColorOffset: { value: 0.08 },
+        uColorMultiplier: { value: 5.0 },
+        uFoamColor: { value: new THREE.Color(0xffffff) },
+      },
+      vertexShader: `
+        uniform float uTime;
+        uniform float uBigWavesElevation;
+        uniform vec2 uBigWavesFrequency;
+        uniform float uBigWavesSpeed;
+        uniform float uSmallWavesElevation;
+        uniform float uSmallWavesFrequency;
+        uniform float uSmallWavesSpeed;
+
+        varying float vElevation;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+
+        // Simplex noise function
+        vec4 permute(vec4 x) { return mod(((x*34.0)+1.0)*x, 289.0); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+        float snoise(vec3 v) {
+          const vec2 C = vec2(1.0/6.0, 1.0/3.0);
+          const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+          vec3 i  = floor(v + dot(v, C.yyy));
+          vec3 x0 = v - i + dot(i, C.xxx);
+          vec3 g = step(x0.yzx, x0.xyz);
+          vec3 l = 1.0 - g;
+          vec3 i1 = min(g.xyz, l.zxy);
+          vec3 i2 = max(g.xyz, l.zxy);
+          vec3 x1 = x0 - i1 + C.xxx;
+          vec3 x2 = x0 - i2 + C.yyy;
+          vec3 x3 = x0 - D.yyy;
+          i = mod(i, 289.0);
+          vec4 p = permute(permute(permute(
+                    i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                  + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                  + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+          float n_ = 1.0/7.0;
+          vec3 ns = n_ * D.wyz - D.xzx;
+          vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+          vec4 x_ = floor(j * ns.z);
+          vec4 y_ = floor(j - 7.0 * x_);
+          vec4 x = x_ *ns.x + ns.yyyy;
+          vec4 y = y_ *ns.x + ns.yyyy;
+          vec4 h = 1.0 - abs(x) - abs(y);
+          vec4 b0 = vec4(x.xy, y.xy);
+          vec4 b1 = vec4(x.zw, y.zw);
+          vec4 s0 = floor(b0)*2.0 + 1.0;
+          vec4 s1 = floor(b1)*2.0 + 1.0;
+          vec4 sh = -step(h, vec4(0.0));
+          vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+          vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+          vec3 p0 = vec3(a0.xy, h.x);
+          vec3 p1 = vec3(a0.zw, h.y);
+          vec3 p2 = vec3(a1.xy, h.z);
+          vec3 p3 = vec3(a1.zw, h.w);
+          vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+          p0 *= norm.x;
+          p1 *= norm.y;
+          p2 *= norm.z;
+          p3 *= norm.w;
+          vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+          m = m * m;
+          return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+        }
+
+        void main() {
+          vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+
+          // Big waves
+          float elevation = sin(modelPosition.x * uBigWavesFrequency.x + uTime * uBigWavesSpeed) *
+                           sin(modelPosition.z * uBigWavesFrequency.y + uTime * uBigWavesSpeed) *
+                           uBigWavesElevation;
+
+          // Small waves with noise
+          for(float i = 1.0; i <= 4.0; i++) {
+            elevation -= abs(snoise(vec3(
+              modelPosition.xz * uSmallWavesFrequency * i,
+              uTime * uSmallWavesSpeed
+            )) * uSmallWavesElevation / i);
+          }
+
+          modelPosition.y += elevation;
+
+          vec4 viewPosition = viewMatrix * modelPosition;
+          vec4 projectedPosition = projectionMatrix * viewPosition;
+
+          gl_Position = projectedPosition;
+
+          vElevation = elevation;
+          vNormal = normal;
+          vPosition = modelPosition.xyz;
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 uDepthColor;
+        uniform vec3 uSurfaceColor;
+        uniform vec3 uFoamColor;
+        uniform float uColorOffset;
+        uniform float uColorMultiplier;
+
+        varying float vElevation;
+        varying vec3 vNormal;
+        varying vec3 vPosition;
+
+        void main() {
+          float mixStrength = (vElevation + uColorOffset) * uColorMultiplier;
+          mixStrength = clamp(mixStrength, 0.0, 1.0);
+
+          vec3 color = mix(uDepthColor, uSurfaceColor, mixStrength);
+
+          // Add foam on wave peaks
+          float foam = smoothstep(0.2, 0.4, vElevation);
+          color = mix(color, uFoamColor, foam * 0.3);
+
+          // Fresnel effect for edge glow
+          vec3 viewDirection = normalize(cameraPosition - vPosition);
+          float fresnel = pow(1.0 - dot(viewDirection, vec3(0.0, 1.0, 0.0)), 3.0);
+          color = mix(color, uSurfaceColor * 1.5, fresnel * 0.3);
+
+          gl_FragColor = vec4(color, 0.95);
+        }
+      `,
+      transparent: true,
+      side: THREE.DoubleSide,
+    });
+
+    const ocean = new THREE.Mesh(oceanGeometry, oceanMaterial);
+    ocean.position.y = -5;
+    scene.add(ocean);
+
+    // Add second layer of waves (closer, bigger)
+    const frontWaveGeometry = new THREE.PlaneGeometry(300, 150, 200, 100);
+    frontWaveGeometry.rotateX(-Math.PI / 2.5);
+
+    const frontWaveMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uBigWavesElevation: { value: 0.6 },
+        uBigWavesFrequency: { value: new THREE.Vector2(1.5, 1.0) },
+        uBigWavesSpeed: { value: 0.5 },
+        uSmallWavesElevation: { value: 0.2 },
+        uSmallWavesFrequency: { value: 2.0 },
+        uSmallWavesSpeed: { value: 0.15 },
+        uDepthColor: { value: new THREE.Color(0x0a2540) },
+        uSurfaceColor: { value: new THREE.Color(0x4169e1) },
+        uColorOffset: { value: 0.1 },
+        uColorMultiplier: { value: 4.0 },
+        uFoamColor: { value: new THREE.Color(0xffffff) },
+      },
+      vertexShader: oceanMaterial.vertexShader,
+      fragmentShader: oceanMaterial.fragmentShader,
+      transparent: true,
+      side: THREE.DoubleSide,
+    });
+
+    const frontWave = new THREE.Mesh(frontWaveGeometry, frontWaveMaterial);
+    frontWave.position.set(0, 10, 30);
+    scene.add(frontWave);
+
+    // Spray particles
+    const sprayCount = 2000;
+    const sprayGeometry = new THREE.BufferGeometry();
+    const sprayPositions = new Float32Array(sprayCount * 3);
+    const spraySpeeds = new Float32Array(sprayCount);
+
+    for (let i = 0; i < sprayCount; i++) {
+      sprayPositions[i * 3] = (Math.random() - 0.5) * 200;
+      sprayPositions[i * 3 + 1] = Math.random() * 40 + 10;
+      sprayPositions[i * 3 + 2] = (Math.random() - 0.5) * 100 + 30;
+      spraySpeeds[i] = Math.random() * 0.5 + 0.2;
+    }
+
+    sprayGeometry.setAttribute('position', new THREE.BufferAttribute(sprayPositions, 3));
+
+    const sprayMaterial = new THREE.PointsMaterial({
+      size: 0.5,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
+    });
+
+    const spray = new THREE.Points(sprayGeometry, sprayMaterial);
+    scene.add(spray);
+
+    // Ambient light
+    const ambientLight = new THREE.AmbientLight(0x4488ff, 0.4);
+    scene.add(ambientLight);
+
+    // Directional light (moonlight effect)
+    const directionalLight = new THREE.DirectionalLight(0x88aaff, 0.8);
+    directionalLight.position.set(-50, 100, 50);
+    scene.add(directionalLight);
+
+    // Point light for dramatic effect
+    const pointLight = new THREE.PointLight(0x3fb950, 1, 100);
+    pointLight.position.set(0, 30, 40);
+    scene.add(pointLight);
+
+    // Handle resize
+    const handleResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', handleResize);
+
+    // Animation
+    const clock = new THREE.Clock();
     let animationFrame: number;
-    let time = 0;
 
-    const resize = () => {
-      canvas.width = window.innerWidth * window.devicePixelRatio;
-      canvas.height = window.innerHeight * window.devicePixelRatio;
-      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-    };
-    resize();
-    window.addEventListener('resize', resize);
+    const animate = () => {
+      const elapsedTime = clock.getElapsedTime();
 
-    // Wave parameters for turbulent ocean
-    interface Wave {
-      amplitude: number;
-      wavelength: number;
-      speed: number;
-      phase: number;
-      y: number; // base Y position
-    }
+      // Update ocean shader time
+      oceanMaterial.uniforms.uTime.value = elapsedTime;
+      frontWaveMaterial.uniforms.uTime.value = elapsedTime;
 
-    const waves: Wave[] = [
-      // Main massive waves (closest to viewer)
-      { amplitude: 80, wavelength: 400, speed: 0.8, phase: 0, y: 0.35 },
-      { amplitude: 60, wavelength: 300, speed: 1.0, phase: 2, y: 0.4 },
-      { amplitude: 50, wavelength: 250, speed: 1.2, phase: 4, y: 0.45 },
-      // Mid waves
-      { amplitude: 40, wavelength: 350, speed: 0.6, phase: 1, y: 0.5 },
-      { amplitude: 35, wavelength: 280, speed: 0.9, phase: 3, y: 0.55 },
-      // Background waves
-      { amplitude: 25, wavelength: 400, speed: 0.4, phase: 0.5, y: 0.6 },
-      { amplitude: 20, wavelength: 320, speed: 0.5, phase: 2.5, y: 0.65 },
-    ];
+      // Animate spray particles
+      const sprayPos = spray.geometry.attributes.position.array as Float32Array;
+      for (let i = 0; i < sprayCount; i++) {
+        sprayPos[i * 3 + 1] -= spraySpeeds[i];
+        sprayPos[i * 3] += Math.sin(elapsedTime + i) * 0.05;
 
-    // Foam/spray particles
-    interface Spray {
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      life: number;
-      maxLife: number;
-      size: number;
-    }
-    const sprays: Spray[] = [];
-
-    const addSpray = (x: number, y: number, intensity: number) => {
-      for (let i = 0; i < intensity; i++) {
-        sprays.push({
-          x,
-          y,
-          vx: (Math.random() - 0.5) * 8,
-          vy: -Math.random() * 12 - 5,
-          life: 1,
-          maxLife: Math.random() * 40 + 20,
-          size: Math.random() * 4 + 2,
-        });
-      }
-    };
-
-    const draw = () => {
-      time += 0.025;
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-
-      // Dark stormy sky gradient
-      const skyGradient = ctx.createLinearGradient(0, 0, 0, height * 0.5);
-      skyGradient.addColorStop(0, '#0a0e14');
-      skyGradient.addColorStop(0.5, '#0d1520');
-      skyGradient.addColorStop(1, '#0f1a28');
-      ctx.fillStyle = skyGradient;
-      ctx.fillRect(0, 0, width, height);
-
-      // Deep ocean base
-      const oceanGradient = ctx.createLinearGradient(0, height * 0.3, 0, height);
-      oceanGradient.addColorStop(0, '#0a2540');
-      oceanGradient.addColorStop(0.3, '#061a30');
-      oceanGradient.addColorStop(0.6, '#041222');
-      oceanGradient.addColorStop(1, '#020a14');
-      ctx.fillStyle = oceanGradient;
-      ctx.fillRect(0, height * 0.3, width, height * 0.7);
-
-      // Draw waves from back to front
-      waves.slice().reverse().forEach((wave, index) => {
-        const baseY = height * wave.y;
-        const layerIndex = waves.length - 1 - index;
-
-        // Calculate wave path
-        ctx.beginPath();
-        ctx.moveTo(-50, height);
-
-        let prevY = baseY;
-        for (let x = -50; x <= width + 50; x += 5) {
-          // Complex wave formula for turbulent effect
-          const y = baseY +
-            Math.sin((x / wave.wavelength) * Math.PI * 2 + time * wave.speed + wave.phase) * wave.amplitude +
-            Math.sin((x / (wave.wavelength * 0.5)) * Math.PI * 2 + time * wave.speed * 1.5) * wave.amplitude * 0.3 +
-            Math.sin((x / (wave.wavelength * 0.3)) * Math.PI * 2 + time * wave.speed * 2) * wave.amplitude * 0.15;
-
-          ctx.lineTo(x, y);
-
-          // Add spray at wave peaks (for front waves)
-          if (layerIndex < 3 && Math.random() < 0.01 && y < prevY - 5) {
-            addSpray(x, y, 3);
-          }
-          prevY = y;
-        }
-
-        ctx.lineTo(width + 50, height);
-        ctx.closePath();
-
-        // Wave color based on depth
-        const darkness = layerIndex / waves.length;
-        const r = Math.floor(10 + darkness * 20);
-        const g = Math.floor(40 + darkness * 60);
-        const b = Math.floor(80 + darkness * 100);
-
-        // Gradient fill for each wave
-        const waveGradient = ctx.createLinearGradient(0, baseY - wave.amplitude, 0, baseY + wave.amplitude * 2);
-        waveGradient.addColorStop(0, `rgba(${r + 30}, ${g + 50}, ${b + 70}, 0.95)`);
-        waveGradient.addColorStop(0.3, `rgba(${r + 15}, ${g + 30}, ${b + 50}, 0.9)`);
-        waveGradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, 0.95)`);
-        waveGradient.addColorStop(1, `rgba(${r - 5}, ${g - 10}, ${b - 10}, 1)`);
-
-        ctx.fillStyle = waveGradient;
-        ctx.fill();
-
-        // Wave crest highlight (foam line)
-        if (layerIndex < 4) {
-          ctx.beginPath();
-          for (let x = -50; x <= width + 50; x += 5) {
-            const y = baseY +
-              Math.sin((x / wave.wavelength) * Math.PI * 2 + time * wave.speed + wave.phase) * wave.amplitude +
-              Math.sin((x / (wave.wavelength * 0.5)) * Math.PI * 2 + time * wave.speed * 1.5) * wave.amplitude * 0.3 +
-              Math.sin((x / (wave.wavelength * 0.3)) * Math.PI * 2 + time * wave.speed * 2) * wave.amplitude * 0.15;
-
-            if (x === -50) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
-          }
-
-          const foamOpacity = 0.4 - layerIndex * 0.08;
-          ctx.strokeStyle = `rgba(200, 230, 255, ${foamOpacity})`;
-          ctx.lineWidth = 3 - layerIndex * 0.5;
-          ctx.stroke();
-
-          // Extra foam effect on wave crests
-          ctx.strokeStyle = `rgba(255, 255, 255, ${foamOpacity * 0.5})`;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-      });
-
-      // Draw and update spray particles
-      sprays.forEach((spray, i) => {
-        spray.x += spray.vx;
-        spray.y += spray.vy;
-        spray.vy += 0.4; // gravity
-        spray.life -= 1 / spray.maxLife;
-
-        if (spray.life > 0) {
-          ctx.beginPath();
-          ctx.arc(spray.x, spray.y, spray.size * spray.life, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(200, 230, 255, ${spray.life * 0.6})`;
-          ctx.fill();
-        }
-      });
-
-      // Remove dead sprays
-      for (let i = sprays.length - 1; i >= 0; i--) {
-        if (sprays[i].life <= 0) {
-          sprays.splice(i, 1);
+        if (sprayPos[i * 3 + 1] < 0) {
+          sprayPos[i * 3 + 1] = Math.random() * 30 + 20;
+          sprayPos[i * 3] = (Math.random() - 0.5) * 200;
+          sprayPos[i * 3 + 2] = (Math.random() - 0.5) * 100 + 30;
         }
       }
+      spray.geometry.attributes.position.needsUpdate = true;
 
-      // Dramatic foam overlay at the "splash zone"
-      const splashY = height * 0.32;
-      for (let i = 0; i < 15; i++) {
-        const foamX = (Math.sin(time * 0.5 + i * 0.8) * 0.5 + 0.5) * width;
-        const foamY = splashY + Math.sin(time * 1.2 + i) * 30;
-        const foamSize = 20 + Math.sin(time + i) * 10;
+      // Subtle camera movement
+      camera.position.x = Math.sin(elapsedTime * 0.1) * 5;
+      camera.position.y = 15 + Math.sin(elapsedTime * 0.2) * 3;
+      camera.lookAt(0, 15 + Math.sin(elapsedTime * 0.15) * 5, 0);
 
-        ctx.beginPath();
-        ctx.arc(foamX, foamY, foamSize, 0, Math.PI * 2);
-        const foamGradient = ctx.createRadialGradient(foamX, foamY, 0, foamX, foamY, foamSize);
-        foamGradient.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
-        foamGradient.addColorStop(0.5, 'rgba(200, 230, 255, 0.08)');
-        foamGradient.addColorStop(1, 'rgba(200, 230, 255, 0)');
-        ctx.fillStyle = foamGradient;
-        ctx.fill();
-      }
+      // Animate point light
+      pointLight.position.x = Math.sin(elapsedTime * 0.3) * 30;
+      pointLight.intensity = 1 + Math.sin(elapsedTime) * 0.3;
 
-      // Mist/spray atmosphere at top
-      const mistGradient = ctx.createLinearGradient(0, 0, 0, height * 0.4);
-      mistGradient.addColorStop(0, 'rgba(150, 180, 200, 0.03)');
-      mistGradient.addColorStop(0.5, 'rgba(150, 180, 200, 0.06)');
-      mistGradient.addColorStop(1, 'rgba(150, 180, 200, 0)');
-      ctx.fillStyle = mistGradient;
-      ctx.fillRect(0, 0, width, height * 0.4);
-
-      // Vignette effect for drama
-      const vignetteGradient = ctx.createRadialGradient(
-        width / 2, height / 2, 0,
-        width / 2, height / 2, Math.max(width, height) * 0.8
-      );
-      vignetteGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
-      vignetteGradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.1)');
-      vignetteGradient.addColorStop(1, 'rgba(0, 0, 0, 0.4)');
-      ctx.fillStyle = vignetteGradient;
-      ctx.fillRect(0, 0, width, height);
-
-      animationFrame = requestAnimationFrame(draw);
+      renderer.render(scene, camera);
+      animationFrame = requestAnimationFrame(animate);
     };
 
-    draw();
+    animate();
 
+    // Cleanup
     return () => {
-      window.removeEventListener('resize', resize);
+      window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrame);
+      renderer.dispose();
+      oceanGeometry.dispose();
+      oceanMaterial.dispose();
+      frontWaveGeometry.dispose();
+      frontWaveMaterial.dispose();
+      sprayGeometry.dispose();
+      sprayMaterial.dispose();
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
+      }
     };
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
+    <div
+      ref={containerRef}
       className="fixed inset-0 w-full h-full"
-      style={{ display: 'block' }}
+      style={{ background: 'linear-gradient(to bottom, #0a1628 0%, #061422 100%)' }}
     />
   );
 }
