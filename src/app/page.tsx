@@ -52,7 +52,7 @@ const LOCAL_TOKEN_ICONS: Record<string, string> = {
 // Priority: Local > DexScreener CDN > CoinGecko
 const TOKEN_ICONS: Record<string, string> = {
   // Base tokens - using DexScreener/verified URLs
-  PING: 'https://dd.dexscreener.com/ds-data/tokens/base/0xb7e04DEE3Ee60F5990Ea34C4E5Cc816ac87E8e63.png',
+  PING: 'https://cdn.dexscreener.com/cms/images/66fccd9c55c6a79e5aea763ede2b67b11ed1ddf3479839f904d894d3939ef200?width=64&height=64&quality=90',
   TOSHI: 'https://dd.dexscreener.com/ds-data/tokens/base/0xac1bd2486aaf3b5c0fc3fd868558b082a531b2b4.png',
   VIRTUAL: 'https://dd.dexscreener.com/ds-data/tokens/base/0x0b3e328455c4059eeb9e3f84b5543f74e24e7e1b.png',
   WELL: 'https://dd.dexscreener.com/ds-data/tokens/base/0xa88594d404727625a9437c3f886c7643872296ae.png',
@@ -151,22 +151,20 @@ const TOKEN_ADDRESSES: Record<string, { chain: string; address: string }> = {
   ENS: { chain: 'ethereum', address: '0xc18360217d8f7ab5e7c516566761ea12ce7f9d72' },
 };
 
-// Get token logo - uses local icons first, then DexScreener CDN
-// Browser can access DexScreener CDN directly without issues
+// Get token logo - uses local icons first, then pre-configured URLs, then generated URLs
 const getPoolLogo = (symbol: string): string => {
   // First check local static icons (for manually cached icons)
   if (LOCAL_TOKEN_ICONS[symbol]) {
     return LOCAL_TOKEN_ICONS[symbol];
   }
-  // Use DexScreener CDN URL directly for tokens with known addresses
-  // Browser-side loading doesn't have the server-side connection issues
+  // Check pre-configured DexScreener URLs (some tokens use CMS CDN, not standard token CDN)
+  if (TOKEN_ICONS[symbol]) {
+    return TOKEN_ICONS[symbol];
+  }
+  // Generate DexScreener CDN URL from token address
   const tokenInfo = TOKEN_ADDRESSES[symbol];
   if (tokenInfo) {
     return `https://dd.dexscreener.com/ds-data/tokens/${tokenInfo.chain}/${tokenInfo.address.toLowerCase()}.png`;
-  }
-  // Fallback to pre-configured DexScreener URLs
-  if (TOKEN_ICONS[symbol]) {
-    return TOKEN_ICONS[symbol];
   }
   return '';
 };
