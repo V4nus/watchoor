@@ -66,6 +66,9 @@ const priceCache = new Map<string, PriceCache>();
 const CACHE_TTL = 60000; // 1 minute cache
 const LOCALSTORAGE_KEY = 'quote_prices_cache';
 
+// Request deduplication: prevent multiple identical requests
+const pendingRequests = new Map<string, Promise<number>>();
+
 // Load cache from localStorage on init
 function loadCacheFromLocalStorage() {
   if (typeof window === 'undefined') return;
@@ -130,6 +133,11 @@ export async function getQuoteTokenUsdPrice(symbol: string): Promise<number> {
     return cached.price;
   }
 
+  // Check if request is already pending (deduplication)
+  if (pendingRequests.has(upperSymbol)) {
+    return pendingRequests.get(upperSymbol)!;
+  }
+
   // Get CoinGecko ID
   const coinId = QUOTE_TOKEN_IDS[upperSymbol];
   if (!coinId) {
@@ -137,49 +145,60 @@ export async function getQuoteTokenUsdPrice(symbol: string): Promise<number> {
     return 0;
   }
 
-  try {
-    // Fetch from CoinGecko
-    const response = await axios.get(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
-      { timeout: 5000 }
-    );
+  // Create promise for this request
+  const fetchPromise = (async () => {
+    try {
+      // Fetch from CoinGecko
+      const response = await axios.get(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
+        { timeout: 5000 }
+      );
 
-    const price = response.data[coinId]?.usd || 0;
+      const price = response.data[coinId]?.usd || 0;
 
-    // Cache the result
-    priceCache.set(upperSymbol, {
-      price,
-      timestamp: Date.now(),
-    });
-    saveCacheToLocalStorage();
+      // Cache the result
+      priceCache.set(upperSymbol, {
+        price,
+        timestamp: Date.now(),
+      });
+      saveCacheToLocalStorage();
 
-    return price;
-  } catch (error) {
-    console.error(`Failed to fetch price for ${symbol}:`, error);
+      return price;
+    } catch (error) {
+      console.error(`Failed to fetch price for ${symbol}:`, error);
 
-    // Return cached price if available (even if expired)
-    if (cached) {
-      return cached.price;
+      // Return cached price if available (even if expired)
+      if (cached) {
+        return cached.price;
+      }
+
+      // Fallback prices for common tokens (in case API fails)
+      const fallbackPrices: Record<string, number> = {
+        'ETH': 3500,
+        'WETH': 3500,
+        'BNB': 600,
+        'WBNB': 600,
+        'MATIC': 0.8,
+        'WMATIC': 0.8,
+        'SOL': 200,
+        'WSOL': 200,
+        'BTC': 100000,
+        'WBTC': 100000,
+        'AVAX': 35,
+        'WAVAX': 35,
+      };
+
+      return fallbackPrices[upperSymbol] || 0;
+    } finally {
+      // Clean up pending request
+      pendingRequests.delete(upperSymbol);
     }
+  })();
 
-    // Fallback prices for common tokens (in case API fails)
-    const fallbackPrices: Record<string, number> = {
-      'ETH': 3500,
-      'WETH': 3500,
-      'BNB': 600,
-      'WBNB': 600,
-      'MATIC': 0.8,
-      'WMATIC': 0.8,
-      'SOL': 200,
-      'WSOL': 200,
-      'BTC': 100000,
-      'WBTC': 100000,
-      'AVAX': 35,
-      'WAVAX': 35,
-    };
+  // Store pending request
+  pendingRequests.set(upperSymbol, fetchPromise);
 
-    return fallbackPrices[upperSymbol] || 0;
-  }
+  return fetchPromise;
 }
 
 /**

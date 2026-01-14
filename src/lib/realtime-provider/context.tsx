@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
-import { PriceUpdate, TradeUpdate } from '@/hooks/useWebSocket';
+import { TradeUpdate } from '@/hooks/useWebSocket';
 
 interface PoolData {
   priceUsd: number;
@@ -10,6 +10,37 @@ interface PoolData {
   volume24h: number;
   liquidity: number;
   lastUpdate: number;
+}
+
+// Request deduplication: prevent multiple identical requests within time window
+const pendingRequests = new Map<string, Promise<unknown>>();
+const requestCache = new Map<string, { data: unknown; timestamp: number }>();
+const CACHE_TTL = 3000; // 3 second cache for pool data
+
+async function fetchWithDedup<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  // Check cache first
+  const cached = requestCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data as T;
+  }
+
+  // Check if request is already pending
+  if (pendingRequests.has(key)) {
+    return pendingRequests.get(key) as Promise<T>;
+  }
+
+  // Create new request
+  const promise = fetcher().then(data => {
+    requestCache.set(key, { data, timestamp: Date.now() });
+    pendingRequests.delete(key);
+    return data;
+  }).catch(err => {
+    pendingRequests.delete(key);
+    throw err;
+  });
+
+  pendingRequests.set(key, promise);
+  return promise;
 }
 
 interface RealtimeContextType {
@@ -91,9 +122,12 @@ export function RealtimeProvider({ children, pollingInterval = 5000 }: RealtimeP
   }, []);
 
   const fetchPoolData = async (chainId: string, poolAddress: string) => {
+    const cacheKey = `pool:${chainId}:${poolAddress}`;
     try {
-      const response = await fetch(`/api/pool?chainId=${chainId}&poolAddress=${poolAddress}`);
-      const result = await response.json();
+      const result = await fetchWithDedup(cacheKey, async () => {
+        const response = await fetch(`/api/pool?chainId=${chainId}&poolAddress=${poolAddress}`);
+        return response.json();
+      });
 
       if (result.success && result.data) {
         const key = getPoolKey(chainId, poolAddress);
@@ -116,9 +150,12 @@ export function RealtimeProvider({ children, pollingInterval = 5000 }: RealtimeP
   };
 
   const fetchTrades = async (chainId: string, poolAddress: string) => {
+    const cacheKey = `trades:${chainId}:${poolAddress}`;
     try {
-      const response = await fetch(`/api/trades?chainId=${chainId}&poolAddress=${poolAddress}&limit=50`);
-      const result = await response.json();
+      const result = await fetchWithDedup(cacheKey, async () => {
+        const response = await fetch(`/api/trades?chainId=${chainId}&poolAddress=${poolAddress}&limit=50`);
+        return response.json();
+      });
 
       if (result.success && result.data) {
         const key = getPoolKey(chainId, poolAddress);

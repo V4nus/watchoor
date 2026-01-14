@@ -271,6 +271,11 @@ export class RealtimePriceService {
       const priceCallbacks = this.callbacks.get(priceKey);
       if (priceCallbacks) {
         priceCallbacks.delete(priceCallback);
+        // If no more price subscribers and no trade subscribers, stop the stream
+        if (priceCallbacks.size === 0 && !this.tradeCallbacks.has(priceKey)) {
+          this.stopStream(priceKey);
+          this.callbacks.delete(priceKey);
+        }
       }
     };
   }
