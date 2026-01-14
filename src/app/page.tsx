@@ -171,10 +171,10 @@ const getPoolLogo = (symbol: string): string => {
 const ALL_POOLS = [
   // Base pools (10)
   {
-    rank: 1, symbol: 'PING', name: 'Ping', pair: 'PING/ETH', chain: 'base', chainLabel: 'Base',
-    poolAddress: '0x49ed4b143c212c372867a4f64b2760e32602ea1a8ee4fa6172b01f81811f134b',
+    rank: 1, symbol: 'PING', name: 'Ping', pair: 'PING/USDC', chain: 'base', chainLabel: 'Base',
+    poolAddress: '0x98c8f03094a9e65ccedc14c40130e4a5dd0ce14fb12ea58cbeac11f662b458b9',
     logo: 'https://dd.dexscreener.com/ds-data/tokens/base/0xb7e04DEE3Ee60F5990Ea34C4E5Cc816ac87E8e63.png', dex: 'uniswap', version: 'V4',
-    price: 0.05246, change24h: 12.5, volume24h: 8500000, liquidity: 2800000, mcap: 52000000, liquidityRatio: 5.4,
+    price: 0.008356, change24h: 12.5, volume24h: 8500000, liquidity: 2800000, mcap: 52000000, liquidityRatio: 5.4,
   },
   {
     rank: 2, symbol: 'DEGEN', name: 'Degen', pair: 'DEGEN/WETH', chain: 'base', chainLabel: 'Base',
