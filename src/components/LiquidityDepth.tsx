@@ -563,12 +563,15 @@ export default function LiquidityDepth({
                 });
 
                 // Calculate cumulative values (from lowest price upward)
+                // token0Amount = base token (what's for sale)
+                // token1Amount = quote token equivalent
                 let cumBaseAmount = 0;
                 let cumQuoteAmount = 0;
                 let cumLiquidityUSD = 0;
                 const asksWithCumulative = adjustedAsks.map((level) => {
-                  const baseAmount = level.token0Amount;
-                  const quoteAmount = baseAmount * level.price;
+                  // Use pre-calculated amounts from backend
+                  const baseAmount = level.token0Amount;  // Base token for sale
+                  const quoteAmount = level.token1Amount; // Quote token equivalent
                   cumBaseAmount += baseAmount;
                   cumQuoteAmount += quoteAmount;
                   cumLiquidityUSD += level.liquidityUSD;
@@ -644,12 +647,15 @@ export default function LiquidityDepth({
                 });
 
                 // Calculate cumulative values (from highest price downward)
+                // token0Amount = base token (what you can buy)
+                // token1Amount = quote token (what you pay with)
                 let cumBaseAmount = 0;
                 let cumQuoteAmount = 0;
                 let cumLiquidityUSD = 0;
                 const bidsWithCumulative = adjustedBids.map((level) => {
-                  const quoteAmount = level.token1Amount;
-                  const baseAmount = level.price > 0 ? quoteAmount / level.price : 0;
+                  // Use pre-calculated amounts from backend
+                  const baseAmount = level.token0Amount;  // Base token you can buy
+                  const quoteAmount = level.token1Amount; // Quote token available
                   cumBaseAmount += baseAmount;
                   cumQuoteAmount += quoteAmount;
                   cumLiquidityUSD += level.liquidityUSD;

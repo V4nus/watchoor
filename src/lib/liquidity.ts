@@ -712,80 +712,172 @@ export async function getLiquidityDepth(
       client.readContract({ address: token1Addr as `0x${string}`, abi: ERC20_ABI, functionName: 'symbol' }),
     ]);
 
+    // currentPrice from sqrtPriceX96 = token1/token0 ratio (in smallest units, then adjusted for decimals)
     const currentPrice = sqrtPriceX96ToPrice(sqrtPriceX96, Number(decimals0), Number(decimals1));
-    const sqrtPriceCurrent = Math.sqrt(currentPrice);
 
-    // Generate synthetic liquidity levels (similar to V4 approach)
-    // This avoids expensive per-tick RPC calls and generates consistent 50 levels
+    // Get actual pool reserves (token balances in the pool contract)
+    let poolToken0Balance = 0;
+    let poolToken1Balance = 0;
+    try {
+      const [balance0, balance1] = await Promise.all([
+        client.readContract({
+          address: token0Addr as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: 'balanceOf',
+          args: [poolAddress as `0x${string}`],
+        }),
+        client.readContract({
+          address: token1Addr as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: 'balanceOf',
+          args: [poolAddress as `0x${string}`],
+        }),
+      ]);
+      poolToken0Balance = Number(balance0 as bigint) / 10 ** Number(decimals0);
+      poolToken1Balance = Number(balance1 as bigint) / 10 ** Number(decimals1);
+    } catch (e) {
+      console.warn('Failed to get pool balances, using liquidity estimate:', e);
+    }
+
+    // In V3, token0 is always the token with the lower address
+    // But DexScreener's base token might be either token0 or token1
+    // priceUsd is always the USD price of the base token
+    // currentPrice from sqrtPriceX96 is token1/token0 ratio
+
+    // We need to figure out which V3 token corresponds to the "base" token
+    // The base token is what's being traded, the quote token is what you pay with
+
+    // Calculate what token1 would be worth in USD if token0 is base:
+    // If 1 token0 = priceUsd USD, and 1 token0 = currentPrice token1
+    // Then 1 token1 = priceUsd / currentPrice USD
+    const token1UsdIfToken0IsBase = currentPrice > 0 ? priceUsd / currentPrice : 0;
+
+    // Estimate total pool value both ways to determine which makes more sense
+    const totalUsdIfToken0IsBase = poolToken0Balance * priceUsd + poolToken1Balance * token1UsdIfToken0IsBase;
+
+    // If token1 is base, then: 1 token1 = priceUsd USD, 1 token0 = priceUsd * currentPrice USD
+    const token0UsdIfToken1IsBase = priceUsd * currentPrice;
+    const totalUsdIfToken1IsBase = poolToken0Balance * token0UsdIfToken1IsBase + poolToken1Balance * priceUsd;
+
+    // Determine which token is base by checking which gives a reasonable quote token USD price
+    // Common quote tokens (WETH, USDC, etc.) have known USD values
+    // If token1UsdIfToken0IsBase is close to known prices (e.g., ~3000 for WETH), token0 is likely base
+    // If token0UsdIfToken1IsBase is close to known prices, token1 is likely base
+
+    // Known quote token prices (approximate)
+    const knownQuotePrices: Record<string, number> = {
+      'WETH': 3500, 'ETH': 3500,
+      'USDC': 1, 'USDT': 1, 'DAI': 1,
+      'WBNB': 600, 'BNB': 600,
+    };
+
+    const symbol0Upper = (symbol0 as string).toUpperCase();
+    const symbol1Upper = (symbol1 as string).toUpperCase();
+
+    // Check if either token is a known quote token
+    const token0IsKnownQuote = symbol0Upper in knownQuotePrices;
+    const token1IsKnownQuote = symbol1Upper in knownQuotePrices;
+
+    let isToken0Base: boolean;
+
+    if (token1IsKnownQuote && !token0IsKnownQuote) {
+      // token1 is a known quote token (like WETH), so token0 is base
+      isToken0Base = true;
+    } else if (token0IsKnownQuote && !token1IsKnownQuote) {
+      // token0 is a known quote token (like WETH), so token1 is base
+      isToken0Base = false;
+    } else {
+      // Neither or both are known quote tokens, use price comparison
+      // The token with lower USD price is likely the base (meme coins are cheap)
+      isToken0Base = priceUsd < 1; // If priceUsd is very small, it's probably a meme coin = base
+    }
+
+    console.log('V3 token analysis:', {
+      token0: symbol0,
+      token1: symbol1,
+      poolToken0Balance,
+      poolToken1Balance,
+      currentPrice,
+      priceUsd,
+      token1UsdIfToken0IsBase,
+      token0UsdIfToken1IsBase,
+      totalUsdIfToken0IsBase,
+      totalUsdIfToken1IsBase,
+      isToken0Base,
+    });
+
+    // Set up base/quote variables based on which token is base
+    let baseBalance: number, quoteBalance: number;
+    let baseSymbol: string, quoteSymbol: string;
+    let quoteUsdPrice: number;
+
+    if (isToken0Base) {
+      // token0 is base, token1 is quote
+      baseBalance = poolToken0Balance;
+      quoteBalance = poolToken1Balance;
+      baseSymbol = symbol0 as string;
+      quoteSymbol = symbol1 as string;
+      quoteUsdPrice = token1UsdIfToken0IsBase;
+    } else {
+      // token1 is base, token0 is quote
+      baseBalance = poolToken1Balance;
+      quoteBalance = poolToken0Balance;
+      baseSymbol = symbol1 as string;
+      quoteSymbol = symbol0 as string;
+      quoteUsdPrice = token0UsdIfToken1IsBase;
+    }
+
+    // Generate synthetic liquidity levels based on actual pool reserves
     const bids: LiquidityLevel[] = [];
     const asks: LiquidityLevel[] = [];
 
-    // Use priceUsd for level prices so they match the chart's USD scale
-    // The chart displays prices in USD, so order flow lines must also be in USD
-    const displayPrice = priceUsd > 0 ? priceUsd : currentPrice;
+    // Use priceUsd for level prices (USD price of base token)
+    const displayPrice = priceUsd > 0 ? priceUsd : 1;
+
+    // Calculate total USD value of pool reserves
+    const totalPoolUsd = baseBalance * priceUsd + quoteBalance * quoteUsdPrice;
 
     // Generate 50 levels for each side using percentage-based distribution
-    // levels parameter = max percentage (50 or 100)
     const maxPct = levels;
     const numLevels = 50;
 
     for (let i = 1; i <= numLevels; i++) {
-      // Non-linear distribution: more granular near current price
       const ratio = i / numLevels;
-      const pct = maxPct * Math.pow(ratio, 1.5) / 100; // Convert to decimal
+      const pct = maxPct * Math.pow(ratio, 1.5) / 100;
 
-      // Calculate internal pool price for liquidity math (token1/token0 ratio)
-      const internalBidPrice = currentPrice * (1 - pct);
-      const bidSqrtPriceLower = Math.sqrt(internalBidPrice * 0.99);
-      const bidSqrtPriceUpper = Math.sqrt(internalBidPrice * 1.01);
-
-      const bidAmounts = getTokenAmounts(
-        liquidity,
-        bidSqrtPriceLower,
-        bidSqrtPriceUpper,
-        Math.sqrt(internalBidPrice)
-      );
-
-      const bidToken0Amount = bidAmounts.amount0 / 10 ** Number(decimals0);
-      const bidToken1Amount = bidAmounts.amount1 / 10 ** Number(decimals1);
-      const bidLiquidityUSD = bidToken0Amount * priceUsd + bidToken1Amount;
-
-      // Use USD price for chart display (same percentage from USD base)
+      // USD price for this level
       const bidPriceUsd = displayPrice * (1 - pct);
+      const askPriceUsd = displayPrice * (1 + pct);
 
-      if (bidLiquidityUSD > 0) {
+      // Distribute liquidity across levels using exponential decay from current price
+      const decayFactor = Math.exp(-pct * 3);
+      const levelShare = decayFactor / numLevels;
+
+      // Bid side: quote token reserves (what buyers use to buy base token)
+      // Shows how much quote token is available at each price level
+      const bidQuoteAmount = quoteBalance * levelShare;
+      const bidBaseAmount = bidQuoteAmount * quoteUsdPrice / bidPriceUsd; // How much base you can buy
+      const bidLiquidityUSD = bidQuoteAmount * quoteUsdPrice;
+
+      if (bidLiquidityUSD > 0.01) {
         bids.push({
-          price: bidPriceUsd, // USD price for chart display
-          token0Amount: bidToken0Amount,
-          token1Amount: bidToken1Amount,
+          price: bidPriceUsd,
+          token0Amount: bidBaseAmount,  // Base token amount you can buy
+          token1Amount: bidQuoteAmount, // Quote token available
           liquidityUSD: bidLiquidityUSD,
         });
       }
 
-      // Calculate internal pool price for liquidity math
-      const internalAskPrice = currentPrice * (1 + pct);
-      const askSqrtPriceLower = Math.sqrt(internalAskPrice * 0.99);
-      const askSqrtPriceUpper = Math.sqrt(internalAskPrice * 1.01);
-
-      const askAmounts = getTokenAmounts(
-        liquidity,
-        askSqrtPriceLower,
-        askSqrtPriceUpper,
-        Math.sqrt(internalAskPrice)
-      );
-
-      const askToken0Amount = askAmounts.amount0 / 10 ** Number(decimals0);
-      const askToken1Amount = askAmounts.amount1 / 10 ** Number(decimals1);
-      const askLiquidityUSD = askToken0Amount * priceUsd + askToken1Amount;
-
-      // Use USD price for chart display
-      const askPriceUsd = displayPrice * (1 + pct);
+      // Ask side: base token reserves (what sellers offer)
+      const askBaseAmount = baseBalance * levelShare;
+      const askQuoteAmount = askBaseAmount * askPriceUsd / quoteUsdPrice; // Quote token value
+      const askLiquidityUSD = askBaseAmount * priceUsd;
 
       if (askLiquidityUSD > 0) {
         asks.push({
-          price: askPriceUsd, // USD price for chart display
-          token0Amount: askToken0Amount,
-          token1Amount: askToken1Amount,
+          price: askPriceUsd,
+          token0Amount: askBaseAmount,  // Base token for sale
+          token1Amount: askQuoteAmount, // Quote token equivalent
           liquidityUSD: askLiquidityUSD,
         });
       }
@@ -799,20 +891,29 @@ export async function getLiquidityDepth(
       currentPrice: displayPrice,
       internalPrice: currentPrice,
       priceUsd,
+      quoteUsdPrice,
+      baseBalance,
+      quoteBalance,
+      totalPoolUsd,
       bidsCount: bids.length,
       asksCount: asks.length,
       sampleBid: bids[0],
       sampleAsk: asks[0],
+      baseSymbol,
+      quoteSymbol,
+      isToken0Base,
     });
 
+    // Return with base token as token0 for consistent display
+    // The frontend expects token0 to be the base token (shown in middle column)
     return {
       bids,
       asks,
-      currentPrice: displayPrice, // Use USD price for consistency with chart
-      token0Symbol: symbol0 as string,
-      token1Symbol: symbol1 as string,
-      token0Decimals: Number(decimals0),
-      token1Decimals: Number(decimals1),
+      currentPrice: displayPrice,
+      token0Symbol: baseSymbol,  // Base token (what's being traded)
+      token1Symbol: quoteSymbol, // Quote token (what you pay with)
+      token0Decimals: isToken0Base ? Number(decimals0) : Number(decimals1),
+      token1Decimals: isToken0Base ? Number(decimals1) : Number(decimals0),
     };
   } catch (error) {
     console.error('Error fetching liquidity depth:', error);
