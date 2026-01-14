@@ -24,7 +24,7 @@ interface CachedData {
 
 // In-memory cache (persists across requests in the same server instance)
 const cache: Record<string, CachedData> = {};
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour - data refreshes hourly from DexScreener
 
 // DexScreener API
 const DEXSCREENER_API = 'https://api.dexscreener.com';
@@ -37,61 +37,202 @@ const CHAIN_CONFIG: Record<string, { dexscreenerId: string; label: string }> = {
   ethereum: { dexscreenerId: 'ethereum', label: 'ETH' },
 };
 
-async function fetchTrendingFromDexScreener(chainId: string): Promise<TrendingPool[]> {
+// Fetch boosted/trending tokens and filter by chain
+async function fetchBoostedTokens(chainId: string): Promise<TrendingPool[]> {
   const config = CHAIN_CONFIG[chainId];
   if (!config) return [];
 
   try {
-    // DexScreener provides trending/boosted pairs
+    // Get top boosted tokens from DexScreener
     const response = await fetch(
-      `${DEXSCREENER_API}/latest/dex/pairs/${config.dexscreenerId}`,
+      `${DEXSCREENER_API}/token-boosts/top/v1`,
       {
         headers: {
           'Accept': 'application/json',
         },
-        next: { revalidate: 300 }, // 5 min cache at edge
+        next: { revalidate: 3600 },
       }
     );
 
     if (!response.ok) {
-      console.error(`DexScreener API error for ${chainId}: ${response.status}`);
+      console.error(`DexScreener boosted API error: ${response.status}`);
       return [];
     }
 
-    const data = await response.json();
-    const pairs = data.pairs || [];
+    const boostedTokens = await response.json();
 
-    // Sort by volume and take top 30
-    const sortedPairs = pairs
-      .filter((p: any) => p.liquidity?.usd > 10000 && p.volume?.h24 > 1000)
-      .sort((a: any, b: any) => (b.volume?.h24 || 0) - (a.volume?.h24 || 0))
+    // Filter tokens by chain
+    const chainTokens = (boostedTokens || []).filter(
+      (token: any) => token.chainId === config.dexscreenerId
+    );
+
+    if (chainTokens.length === 0) {
+      console.log(`[Trending] No boosted tokens for ${chainId}, trying search...`);
+      return [];
+    }
+
+    // Get token addresses to fetch pair data
+    const tokenAddresses = chainTokens.slice(0, 30).map((t: any) => t.tokenAddress);
+
+    // Fetch pair data for these tokens
+    const pools: TrendingPool[] = [];
+
+    // Batch tokens (max 30 per request)
+    const batchSize = 30;
+    for (let i = 0; i < tokenAddresses.length; i += batchSize) {
+      const batch = tokenAddresses.slice(i, i + batchSize);
+      const addressList = batch.join(',');
+
+      try {
+        const pairResponse = await fetch(
+          `${DEXSCREENER_API}/tokens/v1/${config.dexscreenerId}/${addressList}`,
+          {
+            headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(15000),
+          }
+        );
+
+        if (pairResponse.ok) {
+          const pairData = await pairResponse.json();
+          const pairs = pairData || [];
+
+          for (const pair of pairs) {
+            if (!pair.pairAddress) continue;
+
+            const liquidity = pair.liquidity?.usd || 0;
+            const mcap = pair.fdv || pair.marketCap || liquidity * 10;
+            const liquidityRatio = mcap > 0 ? (liquidity / mcap) * 100 : 0;
+
+            pools.push({
+              symbol: pair.baseToken?.symbol || 'UNKNOWN',
+              name: pair.baseToken?.name || 'Unknown Token',
+              pair: `${pair.baseToken?.symbol || '?'}/${pair.quoteToken?.symbol || '?'}`,
+              chain: chainId,
+              chainLabel: config.label,
+              poolAddress: pair.pairAddress || '',
+              logo: pair.info?.imageUrl || '',
+              price: parseFloat(pair.priceUsd) || 0,
+              change24h: pair.priceChange?.h24 || 0,
+              volume24h: pair.volume?.h24 || 0,
+              liquidity: liquidity,
+              mcap: mcap,
+              liquidityRatio: liquidityRatio,
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`Error fetching pair data for batch:`, err);
+      }
+    }
+
+    // Sort by volume and dedupe by symbol
+    const seen = new Set<string>();
+    return pools
+      .filter((p) => p.liquidity > 10000 && p.volume24h > 1000)
+      .sort((a, b) => b.volume24h - a.volume24h)
+      .filter((p) => {
+        if (seen.has(p.symbol)) return false;
+        seen.add(p.symbol);
+        return true;
+      })
       .slice(0, 30);
 
-    return sortedPairs.map((pair: any) => {
-      const liquidity = pair.liquidity?.usd || 0;
-      const mcap = pair.fdv || pair.marketCap || liquidity * 10; // Fallback estimate
-      const liquidityRatio = mcap > 0 ? (liquidity / mcap) * 100 : 0;
-
-      return {
-        symbol: pair.baseToken?.symbol || 'UNKNOWN',
-        name: pair.baseToken?.name || 'Unknown Token',
-        pair: `${pair.baseToken?.symbol || '?'}/${pair.quoteToken?.symbol || '?'}`,
-        chain: chainId,
-        chainLabel: config.label,
-        poolAddress: pair.pairAddress || '',
-        logo: pair.info?.imageUrl || '',
-        price: parseFloat(pair.priceUsd) || 0,
-        change24h: pair.priceChange?.h24 || 0,
-        volume24h: pair.volume?.h24 || 0,
-        liquidity: liquidity,
-        mcap: mcap,
-        liquidityRatio: liquidityRatio,
-      };
-    });
   } catch (error) {
-    console.error(`Error fetching trending for ${chainId}:`, error);
+    console.error(`Error fetching boosted tokens for ${chainId}:`, error);
     return [];
   }
+}
+
+// Fallback: Search for trending tokens by chain using search API
+async function fetchTrendingBySearch(chainId: string): Promise<TrendingPool[]> {
+  const config = CHAIN_CONFIG[chainId];
+  if (!config) return [];
+
+  try {
+    // Use search with popular terms for each chain
+    const searchTerms: Record<string, string[]> = {
+      base: ['WETH', 'USDC', 'BRETT', 'DEGEN', 'TOSHI'],
+      bsc: ['WBNB', 'CAKE', 'USDT', 'BUSD'],
+      solana: ['SOL', 'USDC', 'BONK', 'WIF'],
+      ethereum: ['WETH', 'USDC', 'PEPE', 'SHIB'],
+    };
+
+    const terms = searchTerms[chainId] || ['WETH', 'USDC'];
+    const allPools: TrendingPool[] = [];
+
+    for (const term of terms) {
+      try {
+        const response = await fetch(
+          `${DEXSCREENER_API}/latest/dex/search?q=${term}`,
+          {
+            headers: { 'Accept': 'application/json' },
+            signal: AbortSignal.timeout(10000),
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          const pairs = (data.pairs || []).filter(
+            (p: any) => p.chainId === config.dexscreenerId
+          );
+
+          for (const pair of pairs.slice(0, 10)) {
+            const liquidity = pair.liquidity?.usd || 0;
+            const mcap = pair.fdv || pair.marketCap || liquidity * 10;
+            const liquidityRatio = mcap > 0 ? (liquidity / mcap) * 100 : 0;
+
+            allPools.push({
+              symbol: pair.baseToken?.symbol || 'UNKNOWN',
+              name: pair.baseToken?.name || 'Unknown Token',
+              pair: `${pair.baseToken?.symbol || '?'}/${pair.quoteToken?.symbol || '?'}`,
+              chain: chainId,
+              chainLabel: config.label,
+              poolAddress: pair.pairAddress || '',
+              logo: pair.info?.imageUrl || '',
+              price: parseFloat(pair.priceUsd) || 0,
+              change24h: pair.priceChange?.h24 || 0,
+              volume24h: pair.volume?.h24 || 0,
+              liquidity: liquidity,
+              mcap: mcap,
+              liquidityRatio: liquidityRatio,
+            });
+          }
+        }
+      } catch (err) {
+        console.error(`Search error for ${term}:`, err);
+      }
+    }
+
+    // Sort by volume and dedupe
+    const seen = new Set<string>();
+    return allPools
+      .filter((p) => p.liquidity > 10000 && p.volume24h > 1000)
+      .sort((a, b) => b.volume24h - a.volume24h)
+      .filter((p) => {
+        if (seen.has(p.symbol)) return false;
+        seen.add(p.symbol);
+        return true;
+      })
+      .slice(0, 30);
+
+  } catch (error) {
+    console.error(`Error searching trending for ${chainId}:`, error);
+    return [];
+  }
+}
+
+async function fetchTrendingFromDexScreener(chainId: string): Promise<TrendingPool[]> {
+  // Try boosted tokens first
+  let pools = await fetchBoostedTokens(chainId);
+
+  // Fallback to search if no boosted tokens found
+  if (pools.length === 0) {
+    console.log(`[Trending] Using search fallback for ${chainId}`);
+    pools = await fetchTrendingBySearch(chainId);
+  }
+
+  console.log(`[Trending] Found ${pools.length} pools for ${chainId}`);
+  return pools;
 }
 
 export async function GET(request: Request) {
