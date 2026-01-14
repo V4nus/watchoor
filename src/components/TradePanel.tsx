@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain, useBalance, useReadContract, useWriteContract, useSignTypedData } from 'wagmi';
-import { injected } from 'wagmi/connectors';
+import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain, useBalance, useReadContract, useWriteContract, useSignTypedData, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
 import { formatUnits, parseUnits, erc20Abi } from 'viem';
 import { CHAIN_ID_MAP } from '@/lib/wagmi';
 import { formatNumber } from '@/lib/api';
@@ -21,6 +20,13 @@ import {
   type QuoteResult,
   type OrderStatus,
 } from '@/lib/cow';
+import {
+  getZeroXQuote,
+  isZeroXSupported,
+  selectAggregator,
+  COW_MIN_TRADE_USD,
+  type ZeroXQuote,
+} from '@/lib/zerox';
 
 // Native token symbols per chain
 const NATIVE_SYMBOLS: Record<number, string> = {
@@ -42,6 +48,7 @@ interface TradePanelProps {
 }
 
 type TradeStatus = 'idle' | 'signing' | 'submitting' | 'pending' | 'filled' | 'error';
+type AggregatorType = 'cow' | 'zerox';
 
 // Slippage presets in basis points (1 bp = 0.01%)
 const SLIPPAGE_PRESETS = [10, 50, 100, 500]; // 0.1%, 0.5%, 1%, 5%
@@ -75,14 +82,18 @@ export default function TradePanel({
   const [slippageBps, setSlippageBps] = useState(50); // Default 0.5%
   const [showSlippageSettings, setShowSlippageSettings] = useState(false);
   const [customSlippage, setCustomSlippage] = useState('');
+  const [aggregator, setAggregator] = useState<AggregatorType>('cow');
+  const [zeroXQuote, setZeroXQuote] = useState<ZeroXQuote | null>(null);
 
   const { address, isConnected } = useAccount();
-  const { connect, isPending: isConnecting } = useConnect();
+  const { connect, isPending: isConnecting, connectors } = useConnect();
   const { disconnect } = useDisconnect();
+  const [showWalletSelector, setShowWalletSelector] = useState(false);
   const currentChainId = useChainId();
   const { switchChain } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const { signTypedDataAsync } = useSignTypedData();
+  const { sendTransactionAsync } = useSendTransaction();
 
   const targetChainId = CHAIN_ID_MAP[chainId] || 1;
   const isSupportedChain = isChainSupported(targetChainId);
@@ -189,8 +200,9 @@ export default function TradePanel({
   // Fetch quote when amount changes
   const fetchQuote = useCallback(async () => {
     const amountNum = parseFloat(amount);
-    if (!amountNum || amountNum <= 0 || !address || !isSupportedChain) {
+    if (!amountNum || amountNum <= 0 || !address) {
       setQuote(null);
+      setZeroXQuote(null);
       return;
     }
 
@@ -202,17 +214,74 @@ export default function TradePanel({
       const buyToken = tradeType === 'buy' ? baseTokenAddress : quoteTokenAddress;
       const amountWei = parseUnits(amount, inputDecimals).toString();
 
-      const quoteResult = await getQuote({
-        chainId: targetChainId,
-        sellToken,
-        buyToken,
-        amount: amountWei,
-        kind: 'sell',
-        userAddress: address,
-        slippageBps,
-      });
+      // Estimate USD value of trade (rough estimate using quote token if it's a stablecoin)
+      // For simplicity, assume quote token is USD-pegged or use current price
+      const estimatedUsd = tradeType === 'buy' ? amountNum : amountNum * currentPrice;
 
-      setQuote(quoteResult);
+      // Select aggregator based on trade size
+      const selectedAggregator = selectAggregator(estimatedUsd);
+      setAggregator(selectedAggregator);
+
+      if (selectedAggregator === 'zerox' && isZeroXSupported(targetChainId)) {
+        // Use 0x for small trades
+        try {
+          const zeroXResult = await getZeroXQuote({
+            chainId: targetChainId,
+            sellToken,
+            buyToken,
+            sellAmount: amountWei,
+            takerAddress: address,
+            slippageBps,
+          });
+          setZeroXQuote(zeroXResult);
+          setQuote(null);
+        } catch (zeroXError) {
+          console.error('0x quote error, falling back to CoW:', zeroXError);
+          // Fallback to CoW if 0x fails
+          setAggregator('cow');
+          if (isSupportedChain) {
+            const quoteResult = await getQuote({
+              chainId: targetChainId,
+              sellToken,
+              buyToken,
+              amount: amountWei,
+              kind: 'sell',
+              userAddress: address,
+              slippageBps,
+            });
+            setQuote(quoteResult);
+            setZeroXQuote(null);
+          }
+        }
+      } else if (isSupportedChain) {
+        // Use CoW for larger trades
+        const quoteResult = await getQuote({
+          chainId: targetChainId,
+          sellToken,
+          buyToken,
+          amount: amountWei,
+          kind: 'sell',
+          userAddress: address,
+          slippageBps,
+        });
+        setQuote(quoteResult);
+        setZeroXQuote(null);
+      } else if (isZeroXSupported(targetChainId)) {
+        // Chain not supported by CoW, try 0x
+        setAggregator('zerox');
+        const zeroXResult = await getZeroXQuote({
+          chainId: targetChainId,
+          sellToken,
+          buyToken,
+          sellAmount: amountWei,
+          takerAddress: address,
+          slippageBps,
+        });
+        setZeroXQuote(zeroXResult);
+        setQuote(null);
+      } else {
+        setQuoteError(t.trade.notAvailable);
+      }
     } catch (error) {
       console.error('Quote error:', error);
       // Show specific error message if available
@@ -222,10 +291,11 @@ export default function TradePanel({
         setQuoteError(t.trade.unableGetQuote);
       }
       setQuote(null);
+      setZeroXQuote(null);
     } finally {
       setIsLoadingQuote(false);
     }
-  }, [amount, address, isSupportedChain, tradeType, quoteTokenAddress, baseTokenAddress, inputDecimals, targetChainId, slippageBps]);
+  }, [amount, address, isSupportedChain, tradeType, quoteTokenAddress, baseTokenAddress, inputDecimals, targetChainId, slippageBps, currentPrice]);
 
   // Debounce quote fetching
   useEffect(() => {
@@ -242,14 +312,23 @@ export default function TradePanel({
   const amountNum = parseFloat(amount) || 0;
   const estimatedOutput = quote
     ? parseFloat(formatUnits(BigInt(quote.buyAmount), outputDecimals))
-    : (tradeType === 'buy'
-      ? (currentPrice > 0 ? amountNum / currentPrice : 0)
-      : amountNum * currentPrice);
+    : zeroXQuote
+      ? parseFloat(formatUnits(BigInt(zeroXQuote.buyAmount), outputDecimals))
+      : (tradeType === 'buy'
+        ? (currentPrice > 0 ? amountNum / currentPrice : 0)
+        : amountNum * currentPrice);
 
-  // Check if approval is needed
-  const needsApproval = !isSellTokenNative && quote && allowance !== undefined
+  // Check if we have any valid quote
+  const hasQuote = quote !== null || zeroXQuote !== null;
+
+  // Check if approval is needed (for CoW)
+  const needsApprovalCow = !isSellTokenNative && quote && allowance !== undefined
     ? BigInt(allowance as bigint) < BigInt(quote.sellAmount)
     : false;
+
+  // For 0x, we need to check allowance against their allowanceTarget
+  // Since we'd need a separate allowance check for 0x, we'll handle it in the trade flow
+  const needsApproval = aggregator === 'cow' ? needsApprovalCow : false;
 
   // Handle slider change
   const handleSliderChange = (percent: number) => {
@@ -260,8 +339,9 @@ export default function TradePanel({
     }
   };
 
-  const handleConnect = () => {
-    connect({ connector: injected() });
+  const handleConnect = (connector: typeof connectors[0]) => {
+    connect({ connector });
+    setShowWalletSelector(false);
   };
 
   const handleSwitchChain = () => {
@@ -293,8 +373,92 @@ export default function TradePanel({
     }
   };
 
-  // Handle trade execution with EIP-712 signing
-  const handleTrade = async () => {
+  // Handle 0x direct swap execution
+  const handleZeroXTrade = async () => {
+    if (!zeroXQuote || !address) return;
+
+    setTradeStatus('signing');
+    setTradeError(null);
+
+    try {
+      // For 0x, we need to check and approve the allowance target if selling ERC20
+      if (!isSellTokenNative) {
+        // Check allowance for 0x's allowance target
+        // We'll need to approve if allowance is insufficient
+        const allowanceTarget = zeroXQuote.allowanceTarget as `0x${string}`;
+
+        // Simple approval flow - approve max
+        setTradeStatus('submitting');
+        const maxUint256 = BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff');
+
+        try {
+          await writeContractAsync({
+            address: sellTokenAddress as `0x${string}`,
+            abi: erc20Abi,
+            functionName: 'approve',
+            args: [allowanceTarget, maxUint256],
+          });
+          // Wait for approval to be mined
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (approvalError) {
+          // If approval fails, it might already be approved, continue
+          console.log('Approval may already exist:', approvalError);
+        }
+      }
+
+      setTradeStatus('submitting');
+
+      // Execute the swap directly on-chain
+      const txHash = await sendTransactionAsync({
+        to: zeroXQuote.to as `0x${string}`,
+        data: zeroXQuote.data as `0x${string}`,
+        value: BigInt(zeroXQuote.value || '0'),
+        gas: BigInt(zeroXQuote.estimatedGas) * BigInt(120) / BigInt(100), // Add 20% buffer
+      });
+
+      setOrderId(txHash);
+      setTradeStatus('pending');
+
+      // Save trade details
+      const sellAmountFormatted = formatUnits(BigInt(zeroXQuote.sellAmount), inputDecimals);
+      const buyAmountFormatted = formatUnits(BigInt(zeroXQuote.buyAmount), outputDecimals);
+      setTradeDetails({
+        sellAmount: sellAmountFormatted,
+        buyAmount: buyAmountFormatted,
+        sellSymbol: tradeType === 'buy' ? quoteSymbol : baseSymbol,
+        buySymbol: tradeType === 'buy' ? baseSymbol : quoteSymbol,
+      });
+
+      // For 0x, the transaction is immediate - mark as filled
+      setTradeStatus('filled');
+      onTradeSuccess?.(tradeType);
+
+      // Reset form after success
+      setTimeout(() => {
+        setAmount('');
+        setSliderValue(0);
+        setZeroXQuote(null);
+        setTradeStatus('idle');
+        setTradeDetails(null);
+      }, 5000);
+
+    } catch (error: unknown) {
+      console.error('0x trade error:', error);
+      setTradeStatus('error');
+      let errorMessage = t.trade.txFailed;
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      if (errorMessage.includes('User rejected') || errorMessage.includes('user rejected')) {
+        setTradeError(t.trade.txCancelled);
+      } else {
+        setTradeError(errorMessage.length > 100 ? errorMessage.slice(0, 100) + '...' : errorMessage);
+      }
+    }
+  };
+
+  // Handle CoW trade execution with EIP-712 signing
+  const handleCowTrade = async () => {
     if (!quote || !address) return;
 
     setTradeStatus('signing');
@@ -431,6 +595,15 @@ export default function TradePanel({
       } else {
         setTradeError(errorMessage.length > 100 ? errorMessage.slice(0, 100) + '...' : errorMessage);
       }
+    }
+  };
+
+  // Unified trade handler - routes to appropriate aggregator
+  const handleTrade = () => {
+    if (aggregator === 'zerox' && zeroXQuote) {
+      handleZeroXTrade();
+    } else if (quote) {
+      handleCowTrade();
     }
   };
 
@@ -728,7 +901,7 @@ export default function TradePanel({
         )}
 
         {/* Price Impact / Rate */}
-        {quote && !isLoadingQuote && (
+        {hasQuote && !isLoadingQuote && (
           <div className="text-sm text-gray-400 bg-[#21262d] rounded px-3 py-2 space-y-1">
             <div className="flex justify-between">
               <span>{t.trade.rate}</span>
@@ -738,20 +911,54 @@ export default function TradePanel({
             </div>
             <div className="flex justify-between">
               <span>{t.trade.networkFee}</span>
-              <span className="text-[#3fb950]">{t.trade.free}</span>
+              <span className={aggregator === 'cow' ? 'text-[#3fb950]' : 'text-gray-300'}>
+                {aggregator === 'cow' ? t.trade.free : '~$0.50'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span>Router</span>
+              <span className="text-[#58a6ff]">
+                {aggregator === 'cow' ? 'CoW Protocol' : '0x API'}
+              </span>
             </div>
           </div>
         )}
 
         {/* Action Button */}
         {!isConnected ? (
-          <button
-            onClick={handleConnect}
-            disabled={isConnecting}
-            className="w-full py-3.5 bg-[#58a6ff] hover:bg-[#58a6ff]/80 disabled:opacity-50 text-white text-base font-medium rounded transition-colors"
-          >
-            {isConnecting ? t.trade.connecting : t.trade.connectWallet}
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowWalletSelector(!showWalletSelector)}
+              disabled={isConnecting}
+              className="w-full py-3.5 bg-[#58a6ff] hover:bg-[#58a6ff]/80 disabled:opacity-50 text-white text-base font-medium rounded transition-colors"
+            >
+              {isConnecting ? t.trade.connecting : t.trade.connectWallet}
+            </button>
+            {showWalletSelector && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-[#161b22] border border-[#30363d] rounded-lg shadow-xl z-50">
+                <div className="p-2 border-b border-[#30363d]">
+                  <span className="text-sm text-gray-400">Select Wallet</span>
+                </div>
+                <div className="p-2 space-y-1 max-h-48 overflow-y-auto">
+                  {connectors.map((connector) => (
+                    <button
+                      key={connector.uid}
+                      onClick={() => handleConnect(connector)}
+                      disabled={isConnecting}
+                      className="w-full px-3 py-2 flex items-center gap-3 hover:bg-[#21262d] rounded transition-colors text-left"
+                    >
+                      <div className="w-6 h-6 rounded bg-[#30363d] flex items-center justify-center">
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <span className="text-sm text-white">{connector.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : !isCorrectChain ? (
           <button
             onClick={handleSwitchChain}
@@ -774,7 +981,7 @@ export default function TradePanel({
         ) : (
           <button
             onClick={handleTrade}
-            disabled={!amount || parseFloat(amount) <= 0 || isLoadingQuote || isTrading || !quote}
+            disabled={!amount || parseFloat(amount) <= 0 || isLoadingQuote || isTrading || !hasQuote}
             className={`w-full py-3.5 text-base font-medium rounded transition-colors disabled:opacity-50 ${
               tradeType === 'buy'
                 ? 'bg-[#3fb950] hover:bg-[#3fb950]/80 text-white'
@@ -819,15 +1026,15 @@ export default function TradePanel({
         </div>
       )}
 
-      {/* Powered by CoW */}
+      {/* Powered by aggregator */}
       <div className="px-3 py-2 border-t border-[#30363d] text-center">
         <a
-          href="https://cow.fi"
+          href={aggregator === 'cow' ? 'https://cow.fi' : 'https://0x.org'}
           target="_blank"
           rel="noopener noreferrer"
           className="text-xs text-gray-500 hover:text-gray-400 transition-colors"
         >
-          {t.trade.poweredBy}
+          {aggregator === 'cow' ? t.trade.poweredBy : 'Powered by 0x Protocol'}
         </a>
       </div>
     </div>

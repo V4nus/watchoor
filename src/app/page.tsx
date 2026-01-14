@@ -23,30 +23,72 @@ const CHAINS = [
 ];
 
 // Local token icons mapping (downloaded to /public/tokens/)
+// For tokens without local icons, we use CoinGecko API as fallback
+const LOCAL_TOKEN_ICONS: Record<string, string> = {
+  // Base tokens
+  DEGEN: '/tokens/degen.png',
+  BRETT: '/tokens/brett.png',
+  AERO: '/tokens/aero.png',
+  cbBTC: '/tokens/cbbtc.webp',
+  // BSC tokens
+  BAKE: '/tokens/bake.jpg',
+  XVS: '/tokens/xvs.png',
+  BSW: '/tokens/bsw.png',
+  TWT: '/tokens/twt.png',
+  SFP: '/tokens/sfp.png',
+  // Solana tokens
+  WIF: '/tokens/wif.jpg',
+  BONK: '/tokens/bonk.jpg',
+  PYTH: '/tokens/pyth.png',
+  JUP: '/tokens/jup.png',
+  // Ethereum tokens
+  PEPE: '/tokens/pepe.jpg',
+  FLOKI: '/tokens/floki.png',
+  SHIB: '/tokens/shib.png',
+};
+
+// CoinGecko icon fallbacks for tokens without local icons
+const COINGECKO_ICONS: Record<string, string> = {
+  // Base tokens
+  TOSHI: 'https://assets.coingecko.com/coins/images/31126/small/Toshi_Logo.png',
+  VIRTUAL: 'https://assets.coingecko.com/coins/images/36285/small/virtual.png',
+  WELL: 'https://assets.coingecko.com/coins/images/26133/small/moonwell.png',
+  EXTRA: 'https://assets.coingecko.com/coins/images/31045/small/extra.png',
+  BALD: 'https://assets.coingecko.com/coins/images/31119/small/bald.png',
+  BASED: 'https://assets.coingecko.com/coins/images/31108/small/based.png',
+  // BSC tokens
+  CAKE: 'https://assets.coingecko.com/coins/images/12632/small/pancakeswap-cake-logo.png',
+  ALPACA: 'https://assets.coingecko.com/coins/images/14165/small/alpaca_logo.png',
+  RACA: 'https://assets.coingecko.com/coins/images/17841/small/raca.png',
+  BABY: 'https://assets.coingecko.com/coins/images/16169/small/baby.png',
+  LINA: 'https://assets.coingecko.com/coins/images/12509/small/linear.png',
+  // Solana tokens
+  JTO: 'https://assets.coingecko.com/coins/images/33103/small/jto.png',
+  ORCA: 'https://assets.coingecko.com/coins/images/17547/small/orca.png',
+  RAY: 'https://assets.coingecko.com/coins/images/13928/small/ray.png',
+  POPCAT: 'https://assets.coingecko.com/coins/images/35642/small/popcat.jpg',
+  RENDER: 'https://assets.coingecko.com/coins/images/11636/small/render.png',
+  KMNO: 'https://assets.coingecko.com/coins/images/36081/small/kamino.png',
+  // Ethereum tokens
+  MOG: 'https://assets.coingecko.com/coins/images/31200/small/mog.png',
+  TURBO: 'https://assets.coingecko.com/coins/images/30117/small/turbo.png',
+  APE: 'https://assets.coingecko.com/coins/images/24383/small/apecoin.png',
+  LDO: 'https://assets.coingecko.com/coins/images/13573/small/lido.png',
+  UNI: 'https://assets.coingecko.com/coins/images/12504/small/uni.png',
+  AAVE: 'https://assets.coingecko.com/coins/images/12645/small/aave.png',
+  ENS: 'https://assets.coingecko.com/coins/images/19785/small/ens.png',
+};
+
 const getTokenLogo = (symbol: string): string => {
-  const localIcons: Record<string, string> = {
-    // Base tokens
-    DEGEN: '/tokens/degen.png',
-    BRETT: '/tokens/brett.png',
-    AERO: '/tokens/aero.png',
-    cbBTC: '/tokens/cbbtc.webp',
-    // BSC tokens
-    BAKE: '/tokens/bake.jpg',
-    XVS: '/tokens/xvs.png',
-    BSW: '/tokens/bsw.png',
-    TWT: '/tokens/twt.png',
-    SFP: '/tokens/sfp.png',
-    // Solana tokens
-    WIF: '/tokens/wif.jpg',
-    BONK: '/tokens/bonk.jpg',
-    PYTH: '/tokens/pyth.png',
-    JUP: '/tokens/jup.png',
-    // Ethereum tokens
-    PEPE: '/tokens/pepe.jpg',
-    FLOKI: '/tokens/floki.png',
-    SHIB: '/tokens/shib.png',
-  };
-  return localIcons[symbol] || '';
+  // First check local icons
+  if (LOCAL_TOKEN_ICONS[symbol]) {
+    return LOCAL_TOKEN_ICONS[symbol];
+  }
+  // Then check CoinGecko fallbacks
+  if (COINGECKO_ICONS[symbol]) {
+    return COINGECKO_ICONS[symbol];
+  }
+  return '';
 };
 
 // Demo trending pools data - using local icons where available
@@ -66,7 +108,7 @@ const ALL_POOLS = [
   },
   {
     rank: 3, symbol: 'TOSHI', name: 'Toshi', pair: 'TOSHI/WETH', chain: 'base', chainLabel: 'Base',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('TOSHI'),
     price: 0.00032, change24h: 15.3, volume24h: 4500000, liquidity: 3200000, mcap: 320000000, liquidityRatio: 1.0,
   },
   {
@@ -76,27 +118,27 @@ const ALL_POOLS = [
   },
   {
     rank: 5, symbol: 'VIRTUAL', name: 'Virtual Protocol', pair: 'VIRTUAL/WETH', chain: 'base', chainLabel: 'Base',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('VIRTUAL'),
     price: 2.85, change24h: 12.4, volume24h: 25000000, liquidity: 18000000, mcap: 2800000000, liquidityRatio: 0.64,
   },
   {
     rank: 6, symbol: 'WELL', name: 'Moonwell', pair: 'WELL/WETH', chain: 'base', chainLabel: 'Base',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('WELL'),
     price: 0.045, change24h: -2.8, volume24h: 3200000, liquidity: 8500000, mcap: 180000000, liquidityRatio: 4.7,
   },
   {
     rank: 7, symbol: 'EXTRA', name: 'Extra Finance', pair: 'EXTRA/WETH', chain: 'base', chainLabel: 'Base',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('EXTRA'),
     price: 0.12, change24h: 5.6, volume24h: 1800000, liquidity: 4200000, mcap: 45000000, liquidityRatio: 9.3,
   },
   {
     rank: 8, symbol: 'BALD', name: 'Bald', pair: 'BALD/WETH', chain: 'base', chainLabel: 'Base',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('BALD'),
     price: 0.0023, change24h: -12.5, volume24h: 850000, liquidity: 1200000, mcap: 23000000, liquidityRatio: 5.2,
   },
   {
     rank: 9, symbol: 'BASED', name: 'Based', pair: 'BASED/WETH', chain: 'base', chainLabel: 'Base',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('BASED'),
     price: 0.00089, change24h: 3.4, volume24h: 620000, liquidity: 980000, mcap: 8900000, liquidityRatio: 11.0,
   },
   {
@@ -107,7 +149,7 @@ const ALL_POOLS = [
   // BSC pools (10)
   {
     rank: 1, symbol: 'CAKE', name: 'PancakeSwap', pair: 'CAKE/BNB', chain: 'bsc', chainLabel: 'BSC',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('CAKE'),
     price: 2.45, change24h: 2.1, volume24h: 45000000, liquidity: 120000000, mcap: 680000000, liquidityRatio: 17.6,
   },
   {
@@ -122,12 +164,12 @@ const ALL_POOLS = [
   },
   {
     rank: 4, symbol: 'ALPACA', name: 'Alpaca Finance', pair: 'ALPACA/BNB', chain: 'bsc', chainLabel: 'BSC',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('ALPACA'),
     price: 0.15, change24h: -1.2, volume24h: 1200000, liquidity: 3800000, mcap: 28000000, liquidityRatio: 13.6,
   },
   {
     rank: 5, symbol: 'RACA', name: 'Radio Caca', pair: 'RACA/BNB', chain: 'bsc', chainLabel: 'BSC',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('RACA'),
     price: 0.00012, change24h: 8.5, volume24h: 5600000, liquidity: 8200000, mcap: 52000000, liquidityRatio: 15.8,
   },
   {
@@ -137,7 +179,7 @@ const ALL_POOLS = [
   },
   {
     rank: 7, symbol: 'BABY', name: 'BabySwap', pair: 'BABY/BNB', chain: 'bsc', chainLabel: 'BSC',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('BABY'),
     price: 0.00045, change24h: 2.8, volume24h: 890000, liquidity: 2100000, mcap: 9500000, liquidityRatio: 22.1,
   },
   {
@@ -152,7 +194,7 @@ const ALL_POOLS = [
   },
   {
     rank: 10, symbol: 'LINA', name: 'Linear', pair: 'LINA/BNB', chain: 'bsc', chainLabel: 'BSC',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('LINA'),
     price: 0.0085, change24h: 6.2, volume24h: 2800000, liquidity: 6500000, mcap: 48000000, liquidityRatio: 13.5,
   },
   // Solana pools (10)
@@ -168,7 +210,7 @@ const ALL_POOLS = [
   },
   {
     rank: 3, symbol: 'JTO', name: 'Jito', pair: 'JTO/SOL', chain: 'solana', chainLabel: 'SOL',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('JTO'),
     price: 3.45, change24h: 8.9, volume24h: 45000000, liquidity: 35000000, mcap: 420000000, liquidityRatio: 8.3,
   },
   {
@@ -183,27 +225,27 @@ const ALL_POOLS = [
   },
   {
     rank: 6, symbol: 'ORCA', name: 'Orca', pair: 'ORCA/SOL', chain: 'solana', chainLabel: 'SOL',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('ORCA'),
     price: 4.25, change24h: 5.2, volume24h: 12000000, liquidity: 22000000, mcap: 280000000, liquidityRatio: 7.9,
   },
   {
     rank: 7, symbol: 'RAY', name: 'Raydium', pair: 'RAY/SOL', chain: 'solana', chainLabel: 'SOL',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('RAY'),
     price: 5.80, change24h: -1.8, volume24h: 35000000, liquidity: 48000000, mcap: 850000000, liquidityRatio: 5.6,
   },
   {
     rank: 8, symbol: 'POPCAT', name: 'Popcat', pair: 'POPCAT/SOL', chain: 'solana', chainLabel: 'SOL',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('POPCAT'),
     price: 0.85, change24h: 18.5, volume24h: 42000000, liquidity: 15000000, mcap: 830000000, liquidityRatio: 1.8,
   },
   {
     rank: 9, symbol: 'RENDER', name: 'Render', pair: 'RENDER/SOL', chain: 'solana', chainLabel: 'SOL',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('RENDER'),
     price: 7.25, change24h: 2.4, volume24h: 28000000, liquidity: 42000000, mcap: 2800000000, liquidityRatio: 1.5,
   },
   {
     rank: 10, symbol: 'KMNO', name: 'Kamino', pair: 'KMNO/SOL', chain: 'solana', chainLabel: 'SOL',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('KMNO'),
     price: 0.12, change24h: -3.5, volume24h: 8500000, liquidity: 18000000, mcap: 120000000, liquidityRatio: 15.0,
   },
   // Ethereum pools (10)
@@ -215,12 +257,12 @@ const ALL_POOLS = [
   },
   {
     rank: 2, symbol: 'MOG', name: 'Mog Coin', pair: 'MOG/WETH', chain: 'ethereum', chainLabel: 'ETH',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('MOG'),
     price: 0.0000021, change24h: 25.3, volume24h: 8200000, liquidity: 4500000, mcap: 850000000, liquidityRatio: 0.53,
   },
   {
     rank: 3, symbol: 'TURBO', name: 'Turbo', pair: 'TURBO/WETH', chain: 'ethereum', chainLabel: 'ETH',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('TURBO'),
     price: 0.0067, change24h: -8.4, volume24h: 5600000, liquidity: 3200000, mcap: 420000000, liquidityRatio: 0.76,
   },
   {
@@ -235,27 +277,27 @@ const ALL_POOLS = [
   },
   {
     rank: 6, symbol: 'APE', name: 'ApeCoin', pair: 'APE/WETH', chain: 'ethereum', chainLabel: 'ETH',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('APE'),
     price: 1.45, change24h: -2.1, volume24h: 42000000, liquidity: 35000000, mcap: 870000000, liquidityRatio: 4.0,
   },
   {
     rank: 7, symbol: 'LDO', name: 'Lido DAO', pair: 'LDO/WETH', chain: 'ethereum', chainLabel: 'ETH',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('LDO'),
     price: 2.15, change24h: 1.8, volume24h: 65000000, liquidity: 120000000, mcap: 1920000000, liquidityRatio: 6.25,
   },
   {
     rank: 8, symbol: 'UNI', name: 'Uniswap', pair: 'UNI/WETH', chain: 'ethereum', chainLabel: 'ETH',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('UNI'),
     price: 12.50, change24h: 4.5, volume24h: 180000000, liquidity: 250000000, mcap: 7500000000, liquidityRatio: 3.33,
   },
   {
     rank: 9, symbol: 'AAVE', name: 'Aave', pair: 'AAVE/WETH', chain: 'ethereum', chainLabel: 'ETH',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('AAVE'),
     price: 285, change24h: 2.8, volume24h: 95000000, liquidity: 180000000, mcap: 4200000000, liquidityRatio: 4.29,
   },
   {
     rank: 10, symbol: 'ENS', name: 'ENS', pair: 'ENS/WETH', chain: 'ethereum', chainLabel: 'ETH',
-    poolAddress: '0x0', logo: '',
+    poolAddress: '0x0', logo: getTokenLogo('ENS'),
     price: 28.50, change24h: -1.2, volume24h: 32000000, liquidity: 65000000, mcap: 850000000, liquidityRatio: 7.65,
   },
 ];

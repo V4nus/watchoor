@@ -1,11 +1,19 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useAccount, useConnect, useDisconnect, useBalance, useChainId, useSwitchChain, useReadContract } from 'wagmi';
-import { injected } from 'wagmi/connectors';
+import { useAccount, useConnect, useDisconnect, useBalance, useChainId, useSwitchChain, useReadContract, useConnectors } from 'wagmi';
 import { formatUnits, erc20Abi } from 'viem';
 import { CHAIN_ID_MAP } from '@/lib/wagmi';
 import { formatNumber } from '@/lib/api';
+
+// Wallet icons (SVG data URIs for common wallets)
+const WALLET_ICONS: Record<string, string> = {
+  metaMask: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMjcuMiA0TDE3LjYgMTEuMkwxOS40IDdMMjcuMiA0WiIgZmlsbD0iI0U4ODIxRSIvPjxwYXRoIGQ9Ik00LjggNEwxNC40IDExLjJMMTIuNiA3TDQuOCA0WiIgZmlsbD0iI0U4ODIxRSIvPjwvc3ZnPg==',
+  okx: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIGZpbGw9ImJsYWNrIi8+PHJlY3QgeD0iNiIgeT0iNiIgd2lkdGg9IjgiIGhlaWdodD0iOCIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSIxOCIgeT0iNiIgd2lkdGg9IjgiIGhlaWdodD0iOCIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSI2IiB5PSIxOCIgd2lkdGg9IjgiIGhlaWdodD0iOCIgZmlsbD0id2hpdGUiLz48cmVjdCB4PSIxOCIgeT0iMTgiIHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IndoaXRlIi8+PC9zdmc+',
+  binance: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iI0YzQkEyRiIvPjxwYXRoIGQ9Ik0xNiA3TDEyLjUgMTAuNUwxNC41IDEyLjVMMTYgMTFMMTcuNSAxMi41TDE5LjUgMTAuNUwxNiA3WiIgZmlsbD0id2hpdGUiLz48L3N2Zz4=',
+  coinbase: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzAwNTJGRiIvPjxjaXJjbGUgY3g9IjE2IiBjeT0iMTYiIHI9IjgiIGZpbGw9IndoaXRlIi8+PC9zdmc+',
+  walletConnect: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzMzOThGRiIvPjxwYXRoIGQ9Ik0xMCAxM0MxMyAxMCAxOSAxMCAyMiAxM0wxNiAxOUwxMCAxM1oiIGZpbGw9IndoaXRlIi8+PC9zdmc+',
+};
 
 // Native token symbols per chain
 const NATIVE_SYMBOLS: Record<number, string> = {
@@ -51,10 +59,12 @@ export default function WalletButton({
   baseSymbol,
 }: WalletButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showWalletSelector, setShowWalletSelector] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const walletSelectorRef = useRef<HTMLDivElement>(null);
 
   const { address, isConnected } = useAccount();
-  const { connect, isPending: isConnecting } = useConnect();
+  const { connect, isPending: isConnecting, connectors } = useConnect();
   const { disconnect } = useDisconnect();
   const currentChainId = useChainId();
   const { switchChain } = useSwitchChain();
@@ -62,6 +72,17 @@ export default function WalletButton({
   const targetChainId = CHAIN_ID_MAP[chainId] || 1;
   const isCorrectChain = currentChainId === targetChainId;
   const nativeSymbol = NATIVE_SYMBOLS[targetChainId] || 'ETH';
+
+  // Get wallet icon based on connector name
+  const getWalletIcon = (connectorName: string): string => {
+    const name = connectorName.toLowerCase();
+    if (name.includes('metamask')) return WALLET_ICONS.metaMask;
+    if (name.includes('okx') || name.includes('okex')) return WALLET_ICONS.okx;
+    if (name.includes('binance') || name.includes('bnb')) return WALLET_ICONS.binance;
+    if (name.includes('coinbase')) return WALLET_ICONS.coinbase;
+    if (name.includes('walletconnect')) return WALLET_ICONS.walletConnect;
+    return '';
+  };
 
   // Native token balance
   const { data: nativeBalance } = useBalance({
@@ -111,13 +132,17 @@ export default function WalletButton({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
+      if (walletSelectorRef.current && !walletSelectorRef.current.contains(event.target as Node)) {
+        setShowWalletSelector(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleConnect = () => {
-    connect({ connector: injected() });
+  const handleConnect = (connector: typeof connectors[0]) => {
+    connect({ connector });
+    setShowWalletSelector(false);
   };
 
   const handleSwitchChain = () => {
@@ -132,19 +157,63 @@ export default function WalletButton({
     return formatNumber(value);
   };
 
-  // Not connected - show connect button
+  // Not connected - show connect button with wallet selector
   if (!isConnected) {
     return (
-      <button
-        onClick={handleConnect}
-        disabled={isConnecting}
-        className="px-3 py-1.5 bg-[#58a6ff] hover:bg-[#58a6ff]/80 disabled:opacity-50 text-white text-xs sm:text-sm font-medium rounded transition-colors flex items-center gap-1.5"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-        <span className="hidden sm:inline">{isConnecting ? 'Connecting...' : 'Connect'}</span>
-      </button>
+      <div className="relative" ref={walletSelectorRef}>
+        <button
+          onClick={() => setShowWalletSelector(!showWalletSelector)}
+          disabled={isConnecting}
+          className="px-3 py-1.5 bg-[#58a6ff] hover:bg-[#58a6ff]/80 disabled:opacity-50 text-white text-xs sm:text-sm font-medium rounded transition-colors flex items-center gap-1.5"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <span className="hidden sm:inline">{isConnecting ? 'Connecting...' : 'Connect'}</span>
+        </button>
+
+        {/* Wallet selector dropdown */}
+        {showWalletSelector && (
+          <div className="absolute right-0 mt-2 w-64 bg-[#161b22] border border-[#30363d] rounded-lg shadow-xl z-50">
+            <div className="p-3 border-b border-[#30363d]">
+              <div className="text-sm font-medium text-white">Connect Wallet</div>
+              <div className="text-xs text-gray-400 mt-1">Choose your preferred wallet</div>
+            </div>
+            <div className="p-2 space-y-1">
+              {connectors.map((connector) => {
+                const icon = getWalletIcon(connector.name);
+                return (
+                  <button
+                    key={connector.uid}
+                    onClick={() => handleConnect(connector)}
+                    disabled={isConnecting}
+                    className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-[#21262d] rounded-lg transition-colors text-left"
+                  >
+                    {icon ? (
+                      <img src={icon} alt={connector.name} className="w-8 h-8 rounded-lg" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-lg bg-[#30363d] flex items-center justify-center">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-white">{connector.name}</div>
+                      {connector.name.toLowerCase().includes('walletconnect') && (
+                        <div className="text-xs text-gray-400">Scan with mobile wallet</div>
+                      )}
+                    </div>
+                    {isConnecting && (
+                      <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
 
