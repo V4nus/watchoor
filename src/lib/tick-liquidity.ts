@@ -68,7 +68,7 @@ function isV4Pool(address: string): boolean {
 
 // Get initialized ticks from bitmap
 async function getInitializedTicks(
-  client: ReturnType<typeof createPublicClient>,
+  client: { readContract: ReturnType<typeof createPublicClient>['readContract'] },
   poolAddress: string,
   tickSpacing: number,
   currentTick: number,
@@ -131,7 +131,7 @@ async function getInitializedTicks(
 
 // Get V4 initialized ticks from bitmap
 async function getV4InitializedTicks(
-  client: ReturnType<typeof createPublicClient>,
+  client: { readContract: ReturnType<typeof createPublicClient>['readContract'] },
   stateViewAddress: string,
   poolId: string,
   tickSpacing: number,
