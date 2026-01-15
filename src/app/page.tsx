@@ -28,23 +28,17 @@ const SUPPORTED_CHAINS = [
 
 // Example pools for demo
 const EXAMPLE_POOLS = [
-  { symbol: 'DEGEN', chain: 'base', pair: 'DEGEN/WETH', address: '0xc9034c3e7f58003e6ae0c8438e7c8f4598d5acaa' },
+  { symbol: 'DRB', chain: 'base', pair: 'DRB/WETH', address: '0xc9034c3e7f58003e6ae0c8438e7c8f4598d5acaa' },
   { symbol: 'BRETT', chain: 'base', pair: 'BRETT/WETH', address: '0x76bf0abd20f1e0155ce40a62615a90a709a6c3d8' },
   { symbol: 'PEPE', chain: 'ethereum', pair: 'PEPE/WETH', address: '0xa43fe16908251ee70ef74718545e4fe6c5ccec9f' },
 ];
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const [showSplash, setShowSplash] = useState(true);
   const t = useTranslations();
 
   useEffect(() => {
     setMounted(true);
-    // End splash animation - synced with CSS animation (1.3s rise + 0.4s fade = 1.7s)
-    const timer = setTimeout(() => {
-      setShowSplash(false);
-    }, 1700);
-    return () => clearTimeout(timer);
   }, []);
 
   if (!mounted) {
@@ -57,37 +51,6 @@ export default function Home() {
 
   return (
     <>
-      {/* Splash Screen - Liquid wave animation */}
-      {showSplash && (
-        <div className="fixed inset-0 z-50 bg-black pointer-events-none splash-container overflow-hidden">
-          {/* Liquid wave rising from bottom */}
-          <div className="absolute bottom-0 left-0 right-0 flex items-end">
-            {heights.map((height, i) => {
-              // Smooth wave delay - creates liquid flow effect
-              const waveDelay = i * 20;
-
-              return (
-                <div
-                  key={i}
-                  className="flex-1 splash-liquid"
-                  style={{
-                    height: `${height}vh`,
-                    background: `linear-gradient(to top,
-                      rgba(34, 197, 94, 0.8),
-                      rgba(34, 197, 94, 0.5) 30%,
-                      rgba(34, 197, 94, 0.2) 70%,
-                      transparent)`,
-                    animationDelay: `${waveDelay}ms`,
-                  }}
-                />
-              );
-            })}
-          </div>
-          {/* Glow overlay */}
-          <div className="splash-glow-overlay absolute bottom-0 left-0 right-0 h-[50vh] pointer-events-none" />
-        </div>
-      )}
-
       {/* Hero section flowing liquidity background - only for first screen */}
       <div className="absolute top-0 left-0 right-0 h-screen z-0 pointer-events-none overflow-hidden">
         <div className="absolute bottom-0 left-0 right-0 flex items-end gap-[2px]">
@@ -197,7 +160,6 @@ export default function Home() {
 
             {/* Quick links */}
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <span className="text-sm text-gray-600">Try:</span>
               {EXAMPLE_POOLS.map((pool) => (
                 <Link
                   key={pool.address}
@@ -332,57 +294,6 @@ export default function Home() {
         * {
           scroll-behavior: smooth;
         }
-        .splash-container {
-          animation: splashFadeOut 0.6s ease-in-out 1.4s forwards;
-        }
-        .splash-liquid {
-          transform: scaleY(0);
-          transform-origin: bottom;
-          animation: liquidRise 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-        .splash-glow-overlay {
-          background: radial-gradient(ellipse at 50% 100%, rgba(34, 197, 94, 0.3) 0%, transparent 70%);
-          animation: glowPulse 1.2s ease-in-out forwards;
-        }
-        @keyframes liquidRise {
-          0% {
-            transform: scaleY(0);
-            opacity: 0;
-          }
-          20% {
-            opacity: 0.6;
-          }
-          60% {
-            transform: scaleY(1.05);
-            opacity: 1;
-          }
-          80% {
-            transform: scaleY(0.98);
-          }
-          100% {
-            transform: scaleY(1);
-            opacity: 1;
-          }
-        }
-        @keyframes glowPulse {
-          0% {
-            opacity: 0;
-          }
-          50% {
-            opacity: 1;
-          }
-          100% {
-            opacity: 0.6;
-          }
-        }
-        @keyframes splashFadeOut {
-          from {
-            opacity: 1;
-          }
-          to {
-            opacity: 0;
-          }
-        }
         @keyframes liquidityFlow {
           0%, 100% {
             transform: scaleY(1);
@@ -434,22 +345,22 @@ function OrderFlowSection() {
     const asks: Array<{ price: number; size: number; depth: number }> = [];
 
     let bidDepth = 0;
-    for (let i = 1; i <= 10; i++) {
-      const size = 20000 + Math.random() * 180000;
+    for (let i = 1; i <= 12; i++) {
+      const size = 25000 + Math.random() * 200000;
       bidDepth += size;
       bids.push({
-        price: currentPrice - i * 12 - Math.random() * 5,
+        price: currentPrice - i * 10 - Math.random() * 4,
         size,
         depth: bidDepth,
       });
     }
 
     let askDepth = 0;
-    for (let i = 1; i <= 10; i++) {
-      const size = 20000 + Math.random() * 180000;
+    for (let i = 1; i <= 12; i++) {
+      const size = 25000 + Math.random() * 200000;
       askDepth += size;
       asks.push({
-        price: currentPrice + i * 12 + Math.random() * 5,
+        price: currentPrice + i * 10 + Math.random() * 4,
         size,
         depth: askDepth,
       });
@@ -471,38 +382,47 @@ function OrderFlowSection() {
   };
 
   return (
-    <section className="min-h-screen flex flex-col justify-center py-24 border-t border-[#111] overflow-hidden snap-section">
-      <div className="max-w-7xl mx-auto px-6">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h2 className="text-4xl sm:text-5xl font-medium tracking-tight mb-4">
-            Order Book <span className="text-[#22c55e]">Depth</span>
-          </h2>
-          <p className="text-gray-500 text-lg">Real-time bid/ask liquidity visualization</p>
+    <section className="min-h-screen flex flex-col justify-center py-20 border-t border-[#111] overflow-hidden snap-section">
+      <div className="w-full px-6 sm:px-10 lg:px-16 xl:px-24">
+        {/* Header row with title on left, price on right */}
+        <div className="max-w-7xl mx-auto mb-8">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+            {/* Left: Small label style title */}
+            <div>
+              <span className="text-xs uppercase tracking-widest text-[#22c55e] font-medium mb-2 block">Live Demo</span>
+              <h2 className="text-2xl sm:text-3xl font-medium tracking-tight text-white">
+                Order Book Depth
+              </h2>
+              <p className="text-gray-500 text-sm mt-1">Bid/Ask liquidity visualization</p>
+            </div>
+
+            {/* Right: Current Price */}
+            <div className="flex items-center gap-4 px-6 py-3 rounded-xl bg-[#0d0d0d] border border-[#1a1a1a]">
+              <div className="text-3xl sm:text-4xl font-bold text-white tracking-tight tabular-nums">${currentPrice.toFixed(2)}</div>
+              <div className="text-left border-l border-[#222] pl-4">
+                <div className="text-sm text-gray-400 font-medium">ETH/USDC</div>
+                <div className="text-xs text-gray-600">Spread: 0.02%</div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Current Price */}
-        <div className="text-center mb-8">
-          <div className="text-3xl font-bold text-white">${currentPrice.toFixed(2)}</div>
-          <div className="text-sm text-gray-500">ETH/USDC · Spread: 0.02%</div>
-        </div>
-
-        {/* Order Book */}
-        <div className="max-w-4xl mx-auto">
+        {/* Order Book - Full width with max constraint */}
+        <div className="max-w-7xl mx-auto">
           <div className="flex gap-4 lg:gap-8">
             {/* Bids (left) */}
             <div className="flex-1">
-              <div className="flex justify-between text-xs text-gray-500 mb-3 px-2">
-                <span className="uppercase tracking-wider font-medium">Bids</span>
+              <div className="flex justify-between text-xs text-gray-500 mb-3 px-3">
+                <span className="uppercase tracking-wider font-medium text-[#22c55e]">Bids</span>
                 <span>Total: ${formatK(orderBook.bids[orderBook.bids.length - 1]?.depth || 0)}</span>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-[2px]">
                 {orderBook.bids.map((order, i) => {
                   const widthPercent = (order.depth / maxDepth) * 100;
                   return (
                     <div
                       key={`bid-${i}`}
-                      className="relative h-9 flex items-center rounded overflow-hidden"
+                      className="relative h-9 sm:h-10 flex items-center rounded overflow-hidden group hover:bg-[#22c55e]/5 transition-colors"
                     >
                       <div
                         className="absolute left-0 h-full bg-gradient-to-r from-[#22c55e]/30 to-[#22c55e]/5 transition-all duration-700"
@@ -510,7 +430,8 @@ function OrderFlowSection() {
                       />
                       <div className="relative flex justify-between w-full px-3 font-mono text-sm">
                         <span className="text-[#22c55e] font-medium">${order.price.toFixed(2)}</span>
-                        <span className="text-gray-400">{formatK(order.size)}</span>
+                        <span className="text-gray-400 tabular-nums">{formatK(order.size)}</span>
+                        <span className="text-gray-600 tabular-nums hidden sm:block">{formatK(order.depth)}</span>
                       </div>
                     </div>
                   );
@@ -518,26 +439,34 @@ function OrderFlowSection() {
               </div>
             </div>
 
+            {/* Center divider with pulse effect */}
+            <div className="hidden lg:flex flex-col items-center justify-center">
+              <div className="w-px h-full bg-gradient-to-b from-transparent via-[#22c55e]/20 to-transparent relative">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
+              </div>
+            </div>
+
             {/* Asks (right) */}
             <div className="flex-1">
-              <div className="flex justify-between text-xs text-gray-500 mb-3 px-2">
-                <span className="uppercase tracking-wider font-medium">Asks</span>
+              <div className="flex justify-between text-xs text-gray-500 mb-3 px-3">
+                <span className="uppercase tracking-wider font-medium text-red-400">Asks</span>
                 <span>Total: ${formatK(orderBook.asks[orderBook.asks.length - 1]?.depth || 0)}</span>
               </div>
-              <div className="space-y-1">
+              <div className="space-y-[2px]">
                 {orderBook.asks.map((order, i) => {
                   const widthPercent = (order.depth / maxDepth) * 100;
                   return (
                     <div
                       key={`ask-${i}`}
-                      className="relative h-9 flex items-center rounded overflow-hidden"
+                      className="relative h-9 sm:h-10 flex items-center rounded overflow-hidden group hover:bg-red-500/5 transition-colors"
                     >
                       <div
                         className="absolute right-0 h-full bg-gradient-to-l from-red-500/30 to-red-500/5 transition-all duration-700"
                         style={{ width: `${widthPercent}%` }}
                       />
                       <div className="relative flex justify-between w-full px-3 font-mono text-sm">
-                        <span className="text-gray-400">{formatK(order.size)}</span>
+                        <span className="text-gray-600 tabular-nums hidden sm:block">{formatK(order.depth)}</span>
+                        <span className="text-gray-400 tabular-nums">{formatK(order.size)}</span>
                         <span className="text-red-400 font-medium">${order.price.toFixed(2)}</span>
                       </div>
                     </div>
@@ -548,17 +477,19 @@ function OrderFlowSection() {
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="flex items-center justify-center gap-8 mt-10 text-sm">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-sm bg-[#22c55e]/50" />
-            <span className="text-gray-400">Buy Orders</span>
+        {/* Legend - smaller and more subtle */}
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center gap-6 mt-6 text-xs text-gray-500">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-[#22c55e]/50" />
+              <span>Buy</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-red-500/50" />
+              <span>Sell</span>
+            </div>
+            <span className="text-gray-600">Price · Size · Depth</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-sm bg-red-500/50" />
-            <span className="text-gray-400">Sell Orders</span>
-          </div>
-          <span className="text-gray-600">Simulated data</span>
         </div>
       </div>
     </section>
