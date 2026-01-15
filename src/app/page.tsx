@@ -28,7 +28,7 @@ const SUPPORTED_CHAINS = [
 
 // Example pools for demo
 const EXAMPLE_POOLS = [
-  { symbol: 'DRB', chain: 'base', pair: 'DRB/WETH', address: '0xc9034c3e7f58003e6ae0c8438e7c8f4598d5acaa', logo: 'https://dd.dexscreener.com/ds-data/tokens/base/0x3ec2156d4c0a9cbdab4a016633b7bcc6a8a2d2f4.png' },
+  { symbol: 'DRB', chain: 'base', pair: 'DRB/WETH', address: '0x5116773e18A9C7bB03EBB961b38678E45E238923', logo: 'https://dd.dexscreener.com/ds-data/tokens/base/0x3ec2156d4c0a9cbdab4a016633b7bcc6a8a2d2f4.png' },
   { symbol: 'BRETT', chain: 'base', pair: 'BRETT/WETH', address: '0x76bf0abd20f1e0155ce40a62615a90a709a6c3d8', logo: 'https://dd.dexscreener.com/ds-data/tokens/base/0x532f27101965dd16442e59d40670faf5ebb142e4.png' },
   { symbol: 'PEPE', chain: 'ethereum', pair: 'PEPE/WETH', address: '0xa43fe16908251ee70ef74718545e4fe6c5ccec9f', logo: 'https://dd.dexscreener.com/ds-data/tokens/ethereum/0x6982508145454ce325ddbe47a25d4ec3d2311933.png' },
 ];
