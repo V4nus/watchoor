@@ -2,12 +2,12 @@
 
 import SearchBox from '@/components/SearchBox';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
-import LiquidityShowcase from '@/components/LiquidityShowcase';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Github,
   Twitter,
+  ChevronDown,
 } from 'lucide-react';
 import { useTranslations } from '@/lib/i18n';
 
@@ -35,196 +35,544 @@ const EXAMPLE_POOLS = [
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const t = useTranslations();
 
   useEffect(() => {
     setMounted(true);
+    // End splash animation - synced with CSS animation (1.3s rise + 0.4s fade = 1.7s)
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 1700);
+    return () => clearTimeout(timer);
   }, []);
 
   if (!mounted) {
-    return <div className="min-h-screen bg-[#0a0a0a]" />;
+    return <div className="min-h-screen bg-black" />;
   }
 
+  // Pre-defined random heights and highlight positions
+  const heights = [32, 58, 41, 73, 28, 65, 52, 38, 81, 45, 69, 34, 77, 49, 62, 36, 85, 43, 71, 29, 67, 54, 39, 79, 47, 63, 35, 82, 44, 68, 31, 75, 50, 61, 37, 83, 42, 70, 33, 78, 48, 64, 40, 72, 30, 66, 53, 80];
+  const highlights = [3, 8, 14, 21, 27, 33, 39, 44];
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      {/* Header */}
-      <header className="border-b border-[#1a1a1a] sticky top-0 bg-[#0a0a0a]/95 backdrop-blur-sm z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.svg" alt="0xArgus" className="h-6" />
-          </Link>
-          <div className="flex items-center gap-4">
-            <a href="https://github.com/anthropics/claude-code" target="_blank" rel="noopener noreferrer"
-              className="text-gray-500 hover:text-white transition-colors">
-              <Github size={16} />
-            </a>
-            <a href="https://x.com/0xArgus_" target="_blank" rel="noopener noreferrer"
-              className="text-gray-500 hover:text-white transition-colors">
-              <Twitter size={16} />
-            </a>
-            <LanguageSwitcher />
+    <>
+      {/* Splash Screen - Liquid wave animation */}
+      {showSplash && (
+        <div className="fixed inset-0 z-50 bg-black pointer-events-none splash-container overflow-hidden">
+          {/* Liquid wave rising from bottom */}
+          <div className="absolute bottom-0 left-0 right-0 flex items-end">
+            {heights.map((height, i) => {
+              // Smooth wave delay - creates liquid flow effect
+              const waveDelay = i * 20;
+
+              return (
+                <div
+                  key={i}
+                  className="flex-1 splash-liquid"
+                  style={{
+                    height: `${height}vh`,
+                    background: `linear-gradient(to top,
+                      rgba(34, 197, 94, 0.8),
+                      rgba(34, 197, 94, 0.5) 30%,
+                      rgba(34, 197, 94, 0.2) 70%,
+                      transparent)`,
+                    animationDelay: `${waveDelay}ms`,
+                  }}
+                />
+              );
+            })}
           </div>
+          {/* Glow overlay */}
+          <div className="splash-glow-overlay absolute bottom-0 left-0 right-0 h-[50vh] pointer-events-none" />
         </div>
-      </header>
+      )}
 
-      {/* Hero - Split layout */}
-      <section className="py-12 sm:py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-start">
-            {/* Left: Content */}
-            <div className="pt-4">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                <span className="text-xs text-gray-500">Live on-chain data</span>
+      {/* Hero section flowing liquidity background - only for first screen */}
+      <div className="absolute top-0 left-0 right-0 h-screen z-0 pointer-events-none overflow-hidden">
+        <div className="absolute bottom-0 left-0 right-0 flex items-end gap-[2px]">
+          {heights.map((height, i) => {
+            const isHighlight = highlights.includes(i);
+            const waveDelay = i * 0.1;
+
+            return (
+              <div
+                key={`bg-${i}`}
+                className="flex-1 rounded-t-sm"
+                style={{
+                  height: `${height}vh`,
+                  background: isHighlight
+                    ? 'linear-gradient(to top, rgba(34, 197, 94, 0.18), rgba(34, 197, 94, 0.04))'
+                    : 'linear-gradient(to top, rgba(34, 197, 94, 0.08), rgba(34, 197, 94, 0.01))',
+                  boxShadow: isHighlight ? '0 0 20px rgba(34, 197, 94, 0.08)' : 'none',
+                  animation: `liquidityFlow 3s ease-in-out ${waveDelay}s infinite`,
+                  transformOrigin: 'bottom',
+                }}
+              />
+            );
+          })}
+        </div>
+        {/* Gradient fade to black at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black to-transparent" />
+      </div>
+
+      {/* Main Content */}
+      <div className="relative z-10 min-h-screen text-white">
+        {/* Header - Minimal */}
+        <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-3 group">
+              <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+                <path
+                  d="M24 12C14 12 6 24 6 24C6 24 14 36 24 36C34 36 42 24 42 24C42 24 34 12 24 12Z"
+                  stroke="#22c55e"
+                  strokeWidth="2"
+                  fill="none"
+                />
+                <circle cx="24" cy="24" r="8" stroke="#22c55e" strokeWidth="1.5" fill="none" />
+                <circle cx="24" cy="24" r="4" fill="#22c55e" />
+              </svg>
+              <span className="text-lg font-medium tracking-wide">0xArgus</span>
+            </Link>
+
+            <div className="flex items-center gap-6">
+              <nav className="hidden md:flex items-center gap-8 text-sm text-gray-400">
+                <a href="#features" className="hover:text-white transition-colors">Features</a>
+                <a href="#trending" className="hover:text-white transition-colors">Trending</a>
+              </nav>
+              <div className="flex items-center gap-4">
+                <a
+                  href="https://github.com/anthropics/claude-code"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-500 hover:text-white transition-colors"
+                >
+                  <Github size={18} />
+                </a>
+                <a
+                  href="https://x.com/0xArgus_"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-gray-500 hover:text-white transition-colors"
+                >
+                  <Twitter size={18} />
+                </a>
+                <LanguageSwitcher />
               </div>
+            </div>
+          </div>
+        </header>
 
-              <h1 className="text-3xl sm:text-4xl font-bold mb-3 leading-tight">
-                DEX Liquidity Scanner
-              </h1>
-              <p className="text-gray-400 text-sm mb-6 max-w-md">
-                On-chain depth analysis for V2/V3/V4 AMM pools. Tick-level liquidity data, real-time.
-              </p>
+        {/* Hero Section - Full screen, centered */}
+        <section className="min-h-screen flex flex-col items-center justify-center px-6 relative snap-section">
+          {/* Background gradient */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#22c55e]/5 via-transparent to-transparent pointer-events-none" />
 
-              {/* Search */}
-              <div className="mb-4">
-                <SearchBox />
-              </div>
+          <div className="max-w-4xl mx-auto text-center relative z-10">
+            {/* Status badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-[#1a1a1a] bg-black/50 mb-8">
+              <span className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
+              <span className="text-sm text-gray-400">Live on-chain data</span>
+            </div>
 
-              {/* Quick links */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-gray-600">Try:</span>
-                {EXAMPLE_POOLS.map((pool) => (
-                  <Link
-                    key={pool.address}
-                    href={`/pool/${pool.chain}/${pool.address}`}
-                    className="px-2 py-1 rounded bg-[#151515] hover:bg-[#1a1a1a] border border-[#222] text-gray-400 hover:text-white transition-colors flex items-center gap-1"
-                  >
-                    {pool.pair}
-                    <img src={CHAIN_LOGOS[pool.chain]} alt="" className="w-3 h-3 opacity-50" />
-                  </Link>
-                ))}
-              </div>
+            {/* Main headline */}
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-medium tracking-tight mb-6">
+              On-Chain
+              <span className="text-[#22c55e]"> Liquidity</span>
+              <br />
+              Intelligence
+            </h1>
 
-              {/* Chains */}
-              <div className="flex items-center gap-3 mt-8 pt-6 border-t border-[#1a1a1a]">
-                <span className="text-xs text-gray-600">Supported:</span>
-                <div className="flex items-center gap-2">
-                  {SUPPORTED_CHAINS.map((chain) => (
-                    <div key={chain.id} className="w-6 h-6 rounded-full bg-[#151515] p-1" title={chain.name}>
-                      <img src={chain.logo} alt={chain.name} className="w-full h-full object-contain" />
-                    </div>
-                  ))}
+            {/* Subtitle */}
+            <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-12 leading-relaxed">
+              Real-time DEX depth analysis. Tick-level precision.
+              <br className="hidden sm:block" />
+              V2 · V3 · V4 AMM
+            </p>
+
+            {/* Search Box */}
+            <div className="max-w-xl mx-auto mb-8">
+              <SearchBox />
+            </div>
+
+            {/* Quick links */}
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <span className="text-sm text-gray-600">Try:</span>
+              {EXAMPLE_POOLS.map((pool) => (
+                <Link
+                  key={pool.address}
+                  href={`/pool/${pool.chain}/${pool.address}`}
+                  className="px-4 py-2 rounded-full bg-[#111] hover:bg-[#1a1a1a] border border-[#222] text-sm text-gray-300 hover:text-white transition-all flex items-center gap-2"
+                >
+                  {pool.pair}
+                  <img src={CHAIN_LOGOS[pool.chain]} alt="" className="w-4 h-4 opacity-60" />
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          {/* Scroll indicator */}
+          <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-gray-500">
+            <span className="text-xs tracking-widest uppercase">Scroll</span>
+            <ChevronDown size={20} className="animate-bounce" />
+          </div>
+
+          {/* Supported chains - bottom */}
+          <div className="absolute bottom-0 left-0 right-0 border-t border-[#111] py-4">
+            <div className="max-w-7xl mx-auto px-6 flex items-center justify-center gap-8">
+              {SUPPORTED_CHAINS.map((chain) => (
+                <div
+                  key={chain.id}
+                  className="flex items-center gap-2 text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  <img src={chain.logo} alt={chain.name} className="w-5 h-5 opacity-60" />
+                  <span className="text-sm hidden sm:inline">{chain.name}</span>
                 </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Order Flow Section */}
+        <OrderFlowSection />
+
+        {/* Features Section */}
+        <section id="features" className="min-h-screen flex flex-col justify-center py-32 border-t border-[#111] snap-section">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="grid md:grid-cols-2 gap-16 lg:gap-24">
+              {/* Left - Title */}
+              <div>
+                <h2 className="text-4xl sm:text-5xl font-medium tracking-tight mb-6">
+                  Built for
+                  <br />
+                  <span className="text-[#22c55e]">DeFi Traders</span>
+                </h2>
+                <p className="text-gray-400 text-lg leading-relaxed">
+                  Professional-grade liquidity analysis tools.
+                  See exactly where the depth is before you trade.
+                </p>
+              </div>
+
+              {/* Right - Feature list */}
+              <div className="space-y-8">
+                <FeatureItem
+                  number="01"
+                  title="Multi-Protocol Support"
+                  description="V2, V3, and V4 AMM pools across Ethereum, Base, BSC, and Solana."
+                />
+                <FeatureItem
+                  number="02"
+                  title="Tick-Level Analysis"
+                  description="Granular liquidity distribution at every price tick for precise trading."
+                />
+                <FeatureItem
+                  number="03"
+                  title="Real-Time Updates"
+                  description="Live on-chain data with sub-second latency for accurate decisions."
+                />
+                <FeatureItem
+                  number="04"
+                  title="Depth Visualization"
+                  description="Order book style depth charts showing bid/ask liquidity."
+                />
               </div>
             </div>
+          </div>
+        </section>
 
-            {/* Right: Mini Demo */}
-            <div className="lg:pt-8">
-              <MiniOrderBook />
+        {/* Footer - Minimal */}
+        <footer className="border-t border-[#111] py-12">
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="flex items-center gap-3">
+                <svg width="24" height="24" viewBox="0 0 48 48" fill="none" className="opacity-50">
+                  <path
+                    d="M24 12C14 12 6 24 6 24C6 24 14 36 24 36C34 36 42 24 42 24C42 24 34 12 24 12Z"
+                    stroke="#22c55e"
+                    strokeWidth="2"
+                    fill="none"
+                  />
+                  <circle cx="24" cy="24" r="4" fill="#22c55e" />
+                </svg>
+                <span className="text-sm text-gray-500">0xArgus · DeFi Liquidity Analytics</span>
+              </div>
+              <div className="flex items-center gap-8 text-sm text-gray-500">
+                <a
+                  href="https://github.com/anthropics/claude-code"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors"
+                >
+                  GitHub
+                </a>
+                <a
+                  href="https://x.com/0xArgus_"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-white transition-colors"
+                >
+                  Twitter
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </footer>
+      </div>
 
-      {/* Feature Showcase - Full-screen scroll sections */}
-      <LiquidityShowcase />
-
-      {/* Footer */}
-      <footer className="border-t border-[#1a1a1a] py-6">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between text-xs text-gray-600">
-          <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="0xArgus" className="h-4 opacity-50" />
-            <span>DeFi Liquidity Analytics</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <a href="https://github.com/anthropics/claude-code" target="_blank" rel="noopener noreferrer"
-              className="hover:text-gray-400 transition-colors">GitHub</a>
-            <a href="https://x.com/0xArgus_" target="_blank" rel="noopener noreferrer"
-              className="hover:text-gray-400 transition-colors">Twitter</a>
-          </div>
-        </div>
-      </footer>
-    </div>
+      {/* Global styles for animations */}
+      <style jsx global>{`
+        html {
+          scroll-snap-type: y mandatory;
+          scroll-behavior: smooth;
+        }
+        .snap-section {
+          scroll-snap-align: start;
+          scroll-snap-stop: always;
+        }
+        * {
+          scroll-behavior: smooth;
+        }
+        .splash-container {
+          animation: splashFadeOut 0.6s ease-in-out 1.4s forwards;
+        }
+        .splash-liquid {
+          transform: scaleY(0);
+          transform-origin: bottom;
+          animation: liquidRise 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        .splash-glow-overlay {
+          background: radial-gradient(ellipse at 50% 100%, rgba(34, 197, 94, 0.3) 0%, transparent 70%);
+          animation: glowPulse 1.2s ease-in-out forwards;
+        }
+        @keyframes liquidRise {
+          0% {
+            transform: scaleY(0);
+            opacity: 0;
+          }
+          20% {
+            opacity: 0.6;
+          }
+          60% {
+            transform: scaleY(1.05);
+            opacity: 1;
+          }
+          80% {
+            transform: scaleY(0.98);
+          }
+          100% {
+            transform: scaleY(1);
+            opacity: 1;
+          }
+        }
+        @keyframes glowPulse {
+          0% {
+            opacity: 0;
+          }
+          50% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0.6;
+          }
+        }
+        @keyframes splashFadeOut {
+          from {
+            opacity: 1;
+          }
+          to {
+            opacity: 0;
+          }
+        }
+        @keyframes liquidityFlow {
+          0%, 100% {
+            transform: scaleY(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scaleY(0.85);
+            opacity: 0.7;
+          }
+        }
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
+    </>
   );
 }
 
-// Mini order book demo for hero section
-function MiniOrderBook() {
-  const [data, setData] = useState<{ price: number; size: number; side: 'bid' | 'ask' }[]>([]);
+// Order Book Section with animated depth visualization
+function OrderFlowSection() {
+  const [orderBook, setOrderBook] = useState<{
+    bids: Array<{ price: number; size: number; depth: number }>;
+    asks: Array<{ price: number; size: number; depth: number }>;
+  }>({ bids: [], asks: [] });
+
+  const currentPrice = 2847.32;
 
   useEffect(() => {
-    const generateData = () => {
-      const basePrice = 2847;
-      const asks = Array.from({ length: 5 }, (_, i) => ({
-        price: basePrice + (i + 1) * 14.2 + Math.random() * 5,
-        size: 50000 + Math.random() * 200000,
-        side: 'ask' as const,
-      })).reverse();
-      const bids = Array.from({ length: 5 }, (_, i) => ({
-        price: basePrice - (i + 1) * 14.2 - Math.random() * 5,
-        size: 50000 + Math.random() * 200000,
-        side: 'bid' as const,
-      }));
-      return [...asks, ...bids];
-    };
+    // Generate initial order book
+    generateOrderBook();
 
-    setData(generateData());
-    const interval = setInterval(() => setData(generateData()), 2000);
+    // Update periodically for animation
+    const interval = setInterval(() => {
+      generateOrderBook();
+    }, 2500);
+
     return () => clearInterval(interval);
   }, []);
 
-  const maxSize = Math.max(...data.map(d => d.size), 1);
+  function generateOrderBook() {
+    const bids: Array<{ price: number; size: number; depth: number }> = [];
+    const asks: Array<{ price: number; size: number; depth: number }> = [];
+
+    let bidDepth = 0;
+    for (let i = 1; i <= 10; i++) {
+      const size = 20000 + Math.random() * 180000;
+      bidDepth += size;
+      bids.push({
+        price: currentPrice - i * 12 - Math.random() * 5,
+        size,
+        depth: bidDepth,
+      });
+    }
+
+    let askDepth = 0;
+    for (let i = 1; i <= 10; i++) {
+      const size = 20000 + Math.random() * 180000;
+      askDepth += size;
+      asks.push({
+        price: currentPrice + i * 12 + Math.random() * 5,
+        size,
+        depth: askDepth,
+      });
+    }
+
+    setOrderBook({ bids, asks });
+  }
+
+  const maxDepth = Math.max(
+    ...orderBook.bids.map(b => b.depth),
+    ...orderBook.asks.map(a => a.depth),
+    1
+  );
+
+  const formatK = (num: number) => {
+    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+    if (num >= 1000) return `${(num / 1000).toFixed(0)}K`;
+    return num.toFixed(0);
+  };
 
   return (
-    <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="px-3 py-2 border-b border-[#1a1a1a] flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 rounded-full bg-[#627eea] flex items-center justify-center text-[8px] font-bold">Ξ</div>
-          <span className="text-sm font-medium">ETH/USDC</span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-500">V3</span>
-        </div>
-        <span className="text-[10px] text-gray-500">Uniswap</span>
-      </div>
-
-      {/* Order book */}
-      <div className="p-2">
-        <div className="grid grid-cols-3 text-[10px] text-gray-500 px-2 mb-1">
-          <span>Price</span>
-          <span className="text-right">Size</span>
-          <span className="text-right">USD</span>
+    <section className="min-h-screen flex flex-col justify-center py-24 border-t border-[#111] overflow-hidden snap-section">
+      <div className="max-w-7xl mx-auto px-6">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h2 className="text-4xl sm:text-5xl font-medium tracking-tight mb-4">
+            Order Book <span className="text-[#22c55e]">Depth</span>
+          </h2>
+          <p className="text-gray-500 text-lg">Real-time bid/ask liquidity visualization</p>
         </div>
 
-        {data.map((row, i) => {
-          const width = (row.size / maxSize) * 100;
-          const isBid = row.side === 'bid';
+        {/* Current Price */}
+        <div className="text-center mb-8">
+          <div className="text-3xl font-bold text-white">${currentPrice.toFixed(2)}</div>
+          <div className="text-sm text-gray-500">ETH/USDC · Spread: 0.02%</div>
+        </div>
 
-          return (
-            <div key={i} className="relative h-6 flex items-center text-[11px] font-mono">
-              <div
-                className={`absolute h-full ${isBid ? 'right-0 bg-green-500/10' : 'left-0 bg-red-500/10'}`}
-                style={{ width: `${width}%` }}
-              />
-              <div className="relative grid grid-cols-3 w-full px-2">
-                <span className={isBid ? 'text-green-500' : 'text-red-400'}>
-                  {row.price.toFixed(2)}
-                </span>
-                <span className="text-right text-gray-400">
-                  {(row.size / 1000).toFixed(1)}K
-                </span>
-                <span className="text-right text-gray-500">
-                  ${(row.size / 1000).toFixed(0)}K
-                </span>
+        {/* Order Book */}
+        <div className="max-w-4xl mx-auto">
+          <div className="flex gap-4 lg:gap-8">
+            {/* Bids (left) */}
+            <div className="flex-1">
+              <div className="flex justify-between text-xs text-gray-500 mb-3 px-2">
+                <span className="uppercase tracking-wider font-medium">Bids</span>
+                <span>Total: ${formatK(orderBook.bids[orderBook.bids.length - 1]?.depth || 0)}</span>
+              </div>
+              <div className="space-y-1">
+                {orderBook.bids.map((order, i) => {
+                  const widthPercent = (order.depth / maxDepth) * 100;
+                  return (
+                    <div
+                      key={`bid-${i}`}
+                      className="relative h-9 flex items-center rounded overflow-hidden"
+                    >
+                      <div
+                        className="absolute left-0 h-full bg-gradient-to-r from-[#22c55e]/30 to-[#22c55e]/5 transition-all duration-700"
+                        style={{ width: `${widthPercent}%` }}
+                      />
+                      <div className="relative flex justify-between w-full px-3 font-mono text-sm">
+                        <span className="text-[#22c55e] font-medium">${order.price.toFixed(2)}</span>
+                        <span className="text-gray-400">{formatK(order.size)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          );
-        })}
-      </div>
 
-      {/* Footer */}
-      <div className="px-3 py-2 border-t border-[#1a1a1a] text-[10px] text-gray-500 flex justify-between">
-        <span>Real-time tick data</span>
-        <span className="text-green-500">● Live</span>
+            {/* Asks (right) */}
+            <div className="flex-1">
+              <div className="flex justify-between text-xs text-gray-500 mb-3 px-2">
+                <span className="uppercase tracking-wider font-medium">Asks</span>
+                <span>Total: ${formatK(orderBook.asks[orderBook.asks.length - 1]?.depth || 0)}</span>
+              </div>
+              <div className="space-y-1">
+                {orderBook.asks.map((order, i) => {
+                  const widthPercent = (order.depth / maxDepth) * 100;
+                  return (
+                    <div
+                      key={`ask-${i}`}
+                      className="relative h-9 flex items-center rounded overflow-hidden"
+                    >
+                      <div
+                        className="absolute right-0 h-full bg-gradient-to-l from-red-500/30 to-red-500/5 transition-all duration-700"
+                        style={{ width: `${widthPercent}%` }}
+                      />
+                      <div className="relative flex justify-between w-full px-3 font-mono text-sm">
+                        <span className="text-gray-400">{formatK(order.size)}</span>
+                        <span className="text-red-400 font-medium">${order.price.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center justify-center gap-8 mt-10 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-sm bg-[#22c55e]/50" />
+            <span className="text-gray-400">Buy Orders</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-sm bg-red-500/50" />
+            <span className="text-gray-400">Sell Orders</span>
+          </div>
+          <span className="text-gray-600">Simulated data</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// Feature Item Component
+function FeatureItem({ number, title, description }: { number: string; title: string; description: string }) {
+  return (
+    <div className="flex gap-6 group">
+      <span className="text-sm text-[#22c55e] font-mono">{number}</span>
+      <div>
+        <h3 className="text-xl font-medium mb-2 group-hover:text-[#22c55e] transition-colors">{title}</h3>
+        <p className="text-gray-500 leading-relaxed">{description}</p>
       </div>
     </div>
   );
