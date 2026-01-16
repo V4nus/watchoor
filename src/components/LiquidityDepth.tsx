@@ -450,17 +450,23 @@ export default function LiquidityDepth({
     // This ensures bids[0].price < asks[0].price (spread exists)
     const floorToLevel = (price: number) => {
       if (!price || !isFinite(price)) return 0;
-      return Math.floor(price / precision) * precision;
+      const floored = Math.floor(price / precision) * precision;
+      // CRITICAL FIX: Prevent zero price aggregation - use minimum of precision/10 as floor
+      return floored > 0 ? floored : Math.min(price, precision / 10);
     };
     const ceilToLevel = (price: number) => {
       if (!price || !isFinite(price)) return 0;
-      return Math.ceil(price / precision) * precision;
+      const ceiled = Math.ceil(price / precision) * precision;
+      // CRITICAL FIX: Prevent zero price aggregation - use minimum of precision/10 as floor
+      return ceiled > 0 ? ceiled : Math.min(price, precision / 10);
     };
 
     // Aggregate bids by price level (floor - lower price)
     const bidMap = new Map<number, { token0Amount: number; token1Amount: number; liquidityUSD: number }>();
     for (const bid of depthData.bids) {
       const level = floorToLevel(bid.price);
+      // Skip zero-price levels (invalid data)
+      if (level <= 0) continue;
       const existing = bidMap.get(level) || { token0Amount: 0, token1Amount: 0, liquidityUSD: 0 };
       existing.token0Amount += bid.token0Amount;
       existing.token1Amount += bid.token1Amount;
@@ -472,6 +478,8 @@ export default function LiquidityDepth({
     const askMap = new Map<number, { token0Amount: number; token1Amount: number; liquidityUSD: number }>();
     for (const ask of depthData.asks) {
       const level = ceilToLevel(ask.price);
+      // Skip zero-price levels (invalid data)
+      if (level <= 0) continue;
       const existing = askMap.get(level) || { token0Amount: 0, token1Amount: 0, liquidityUSD: 0 };
       existing.token0Amount += ask.token0Amount;
       existing.token1Amount += ask.token1Amount;
