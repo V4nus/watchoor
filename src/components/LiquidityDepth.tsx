@@ -887,9 +887,22 @@ function formatPrice(price: number): string {
   if (!isFinite(price) || price <= 0) return '0.00';
   if (price >= 1000) return price.toLocaleString('en-US', { maximumFractionDigits: 2 });
   if (price >= 1) return price.toFixed(4);
-  if (price >= 0.0001) return price.toFixed(8);
-  if (price >= 0.00000001) return price.toFixed(10);
-  // For extremely small prices, use exponential but ensure non-zero display
+
+  // For small prices, use significant digits to avoid trailing zeros
+  // This gives us clean display like 0.001234 instead of 0.00123400
+  if (price >= 0.0001) {
+    // Show 4 significant digits after leading zeros
+    const str = price.toFixed(8);
+    // Remove trailing zeros after decimal point
+    return str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  }
+
+  if (price >= 0.00000001) {
+    const str = price.toFixed(10);
+    return str.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+  }
+
+  // For extremely small prices, use exponential notation
   const exp = price.toExponential(4);
   return exp === '0.0000e+0' ? '0.00' : exp;
 }
