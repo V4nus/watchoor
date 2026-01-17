@@ -10,9 +10,11 @@ import {
   ChevronDown,
   BookOpen,
   History,
+  Star,
 } from 'lucide-react';
 import { useTranslations } from '@/lib/i18n';
 import { getSearchHistory, SearchHistoryItem } from '@/lib/search-history';
+import { getFavorites, FavoriteItem } from '@/lib/favorites';
 
 // Chain logos
 const CHAIN_LOGOS: Record<string, string> = {
@@ -29,21 +31,60 @@ const SUPPORTED_CHAINS = [
   { id: 'solana', name: 'Solana', logo: CHAIN_LOGOS.solana },
 ];
 
-// Example pools for demo
-const EXAMPLE_POOLS = [
-  { symbol: 'DRB', chain: 'base', pair: 'DRB/WETH', address: '0x5116773e18A9C7bB03EBB961b38678E45E238923', logo: 'https://dd.dexscreener.com/ds-data/tokens/base/0x3ec2156D4c0A9CBdAB4a016633b7BcF6a8d68Ea2.png' },
-  { symbol: 'BRETT', chain: 'base', pair: 'BRETT/WETH', address: '0x76bf0abd20f1e0155ce40a62615a90a709a6c3d8', logo: 'https://dd.dexscreener.com/ds-data/tokens/base/0x532f27101965dd16442e59d40670faf5ebb142e4.png' },
-  { symbol: 'PEPE', chain: 'ethereum', pair: 'PEPE/WETH', address: '0xa43fe16908251ee70ef74718545e4fe6c5ccec9f', logo: 'https://dd.dexscreener.com/ds-data/tokens/ethereum/0x6982508145454ce325ddbe47a25d4ec3d2311933.png' },
-];
+// Hot pool type from API
+interface HotPool {
+  symbol: string;
+  pair: string;
+  chain: string;
+  poolAddress: string;
+  logo: string;
+}
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [hotPools, setHotPools] = useState<HotPool[]>([]);
 
   useEffect(() => {
     setMounted(true);
-    // Load search history from localStorage
+    // Load search history and favorites from localStorage
     setSearchHistory(getSearchHistory());
+    setFavorites(getFavorites());
+
+    // Fetch hot/trending pools from API
+    const fetchHotPools = async () => {
+      try {
+        // Fetch from multiple chains in parallel
+        const chains = ['base', 'ethereum', 'solana'];
+        const responses = await Promise.all(
+          chains.map(chain =>
+            fetch(`/api/trending?chain=${chain}`)
+              .then(res => res.ok ? res.json() : { pools: [] })
+              .catch(() => ({ pools: [] }))
+          )
+        );
+
+        // Combine and take top pools from each chain
+        const allPools: HotPool[] = [];
+        responses.forEach((data, idx) => {
+          const pools = (data.pools || []).slice(0, 2).map((p: { symbol: string; pair: string; poolAddress: string; logo: string }) => ({
+            symbol: p.symbol,
+            pair: p.pair,
+            chain: chains[idx],
+            poolAddress: p.poolAddress,
+            logo: p.logo,
+          }));
+          allPools.push(...pools);
+        });
+
+        setHotPools(allPools.slice(0, 5)); // Max 5 hot pools
+      } catch (err) {
+        console.error('Failed to fetch hot pools:', err);
+      }
+    };
+
+    fetchHotPools();
   }, []);
 
   if (!mounted) {
@@ -163,16 +204,64 @@ export default function Home() {
               <SearchBox />
             </div>
 
-            {/* Quick links - Show search history if available, otherwise show examples */}
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {searchHistory.length > 0 ? (
-                <>
-                  {/* History label */}
+            {/* Quick links - Show both hot tokens and history */}
+            <div className="flex flex-col gap-3">
+              {/* Hot tokens row */}
+              {hotPools.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <span className="flex items-center gap-1.5 text-xs text-gray-500 mr-1">
+                    <span className="text-orange-500">🔥</span>
+                    Hot
+                  </span>
+                  {hotPools.map((pool) => (
+                    <Link
+                      key={`${pool.chain}-${pool.poolAddress}`}
+                      href={`/pool/${pool.chain}/${pool.poolAddress}`}
+                      className="px-4 py-2 rounded-full bg-[#111] hover:bg-[#1a1a1a] border border-[#222] text-sm text-gray-300 hover:text-white transition-all flex items-center gap-2"
+                    >
+                      {pool.logo && (
+                        <img src={pool.logo} alt={pool.symbol} className="w-5 h-5 rounded-full" />
+                      )}
+                      {pool.pair}
+                      <img src={CHAIN_LOGOS[pool.chain]} alt="" className="w-4 h-4 opacity-60" />
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Favorites row - only show if there are favorites */}
+              {favorites.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <span className="flex items-center gap-1.5 text-xs text-gray-500 mr-1">
+                    <Star size={12} className="text-yellow-400" fill="currentColor" />
+                    Favorites
+                  </span>
+                  {favorites.slice(0, 4).map((item) => (
+                    <Link
+                      key={`fav-${item.chainId}-${item.poolAddress}`}
+                      href={`/pool/${item.chainId}/${item.poolAddress}`}
+                      className="px-4 py-2 rounded-full bg-[#111] hover:bg-[#1a1a1a] border border-[#222] text-sm text-gray-300 hover:text-white transition-all flex items-center gap-2"
+                    >
+                      {item.logo && (
+                        <img src={item.logo} alt={item.symbol} className="w-5 h-5 rounded-full" />
+                      )}
+                      {item.pair}
+                      {item.chainLogo && (
+                        <img src={item.chainLogo} alt="" className="w-4 h-4 opacity-60" />
+                      )}
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* Recent history row - only show if there's history */}
+              {searchHistory.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-3">
                   <span className="flex items-center gap-1.5 text-xs text-gray-500 mr-1">
                     <History size={12} />
                     Recent
                   </span>
-                  {searchHistory.slice(0, 5).map((item) => (
+                  {searchHistory.slice(0, 4).map((item) => (
                     <Link
                       key={`${item.chainId}-${item.poolAddress}`}
                       href={`/pool/${item.chainId}/${item.poolAddress}`}
@@ -187,19 +276,7 @@ export default function Home() {
                       )}
                     </Link>
                   ))}
-                </>
-              ) : (
-                EXAMPLE_POOLS.map((pool) => (
-                  <Link
-                    key={pool.address}
-                    href={`/pool/${pool.chain}/${pool.address}`}
-                    className="px-4 py-2 rounded-full bg-[#111] hover:bg-[#1a1a1a] border border-[#222] text-sm text-gray-300 hover:text-white transition-all flex items-center gap-2"
-                  >
-                    <img src={pool.logo} alt={pool.symbol} className="w-5 h-5 rounded-full" />
-                    {pool.pair}
-                    <img src={CHAIN_LOGOS[pool.chain]} alt="" className="w-4 h-4 opacity-60" />
-                  </Link>
-                ))
+                </div>
               )}
             </div>
           </div>

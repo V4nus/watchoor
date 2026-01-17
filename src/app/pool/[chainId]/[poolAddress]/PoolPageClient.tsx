@@ -4,11 +4,12 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { PoolInfo, SearchResult, SUPPORTED_CHAINS, TimeInterval } from '@/types';
 import { formatNumber, formatPercentage, searchPools, formatPrice } from '@/lib/api';
-import { ArrowLeft, ExternalLink, Copy, Check, Globe, Twitter, MessageCircle, Search, X, Loader2, History } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Copy, Check, Globe, Twitter, MessageCircle, Search, X, Loader2, History, Star } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import TokenLogo, { TokenPairLogos } from '@/components/TokenLogo';
 import { useRouter } from 'next/navigation';
 import { addToSearchHistory, getSearchHistory, SearchHistoryItem } from '@/lib/search-history';
+import { isFavorite, toggleFavorite, getFavorites, FavoriteItem } from '@/lib/favorites';
 
 // Dynamic imports for client components
 const Chart = dynamic(() => import('@/components/Chart'), {
@@ -82,10 +83,30 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Load search history on mount
+  // Favorite state
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+
+  // Load search history and favorite status on mount
   useEffect(() => {
     setSearchHistory(getSearchHistory());
-  }, []);
+    setIsFavorited(isFavorite(pool.chainId, pool.poolAddress));
+    setFavorites(getFavorites());
+  }, [pool.chainId, pool.poolAddress]);
+
+  // Handle favorite toggle
+  const handleToggleFavorite = useCallback(() => {
+    const newState = toggleFavorite({
+      chainId: pool.chainId,
+      poolAddress: pool.poolAddress,
+      symbol: pool.baseToken.symbol,
+      pair: `${pool.baseToken.symbol}/${pool.quoteToken.symbol}`,
+      logo: pool.baseToken.imageUrl,
+    });
+    setIsFavorited(newState);
+    // Update favorites list
+    setFavorites(getFavorites());
+  }, [pool.chainId, pool.poolAddress, pool.baseToken.symbol, pool.baseToken.imageUrl, pool.quoteToken.symbol]);
 
   // Handle trade success - trigger chart beam effect
   const handleTradeSuccess = useCallback((tradeType: 'buy' | 'sell') => {
@@ -120,12 +141,12 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
   useEffect(() => {
     addToSearchHistory({
       chainId: pool.chainId,
-      poolAddress: pool.address,
+      poolAddress: pool.poolAddress,
       symbol: pool.baseToken.symbol,
       pair: `${pool.baseToken.symbol}/${pool.quoteToken.symbol}`,
       logo: pool.baseToken.imageUrl,
     });
-  }, [pool.chainId, pool.address, pool.baseToken.symbol, pool.baseToken.imageUrl, pool.quoteToken.symbol]);
+  }, [pool.chainId, pool.poolAddress, pool.baseToken.symbol, pool.baseToken.imageUrl, pool.quoteToken.symbol]);
 
   // Search functionality
   useEffect(() => {
@@ -260,6 +281,17 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
                   <h1 className="text-base sm:text-lg font-bold truncate">
                     {pool.baseToken.symbol}/{pool.quoteToken.symbol}
                   </h1>
+                  <button
+                    onClick={handleToggleFavorite}
+                    className={`p-1 rounded transition-colors ${
+                      isFavorited
+                        ? 'text-yellow-400 hover:text-yellow-300'
+                        : 'text-gray-500 hover:text-yellow-400'
+                    }`}
+                    title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
+                  >
+                    <Star size={16} fill={isFavorited ? 'currentColor' : 'none'} />
+                  </button>
                   <span className="hidden sm:inline px-1.5 py-0.5 text-xs bg-[#21262d] rounded text-gray-400">
                     {pool.chainId.toUpperCase()}
                   </span>
@@ -433,6 +465,39 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
               <span className="font-medium text-white">
                 {new Date(pool.createdAt).toLocaleDateString()}
               </span>
+            </div>
+          )}
+
+          {/* Favorites - inline display */}
+          {favorites.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Star size={12} className="text-yellow-400" fill="currentColor" />
+              <span className="text-xs text-gray-500">Favorites</span>
+              <div className="flex items-center gap-1">
+                {favorites.slice(0, 6).map((fav) => (
+                  <Link
+                    key={`fav-inline-${fav.chainId}-${fav.poolAddress}`}
+                    href={`/pool/${fav.chainId}/${fav.poolAddress}`}
+                    className="relative group"
+                    title={fav.pair}
+                  >
+                    {fav.logo ? (
+                      <img
+                        src={fav.logo}
+                        alt={fav.symbol}
+                        className="w-6 h-6 rounded-full border border-[#30363d] group-hover:border-yellow-400 transition-colors"
+                      />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-[#30363d] flex items-center justify-center text-[10px] border border-[#30363d] group-hover:border-yellow-400 transition-colors">
+                        {fav.symbol.charAt(0)}
+                      </div>
+                    )}
+                  </Link>
+                ))}
+                {favorites.length > 6 && (
+                  <span className="text-xs text-gray-500 ml-1">+{favorites.length - 6}</span>
+                )}
+              </div>
             </div>
           )}
 

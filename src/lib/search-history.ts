@@ -45,12 +45,18 @@ export function getSearchHistory(): SearchHistoryItem[] {
 export function addToSearchHistory(item: Omit<SearchHistoryItem, 'timestamp' | 'chainLogo'>): void {
   if (typeof window === 'undefined') return;
 
+  // Validate required fields
+  if (!item.poolAddress || !item.chainId || !item.symbol || !item.pair) {
+    console.warn('[SearchHistory] Invalid item, missing required fields:', item);
+    return;
+  }
+
   try {
     const history = getSearchHistory();
 
     // Remove existing entry for this pool if it exists
     const filtered = history.filter(
-      h => !(h.chainId === item.chainId && h.poolAddress.toLowerCase() === item.poolAddress.toLowerCase())
+      h => !(h.chainId === item.chainId && h.poolAddress?.toLowerCase() === item.poolAddress.toLowerCase())
     );
 
     // Add new entry at the beginning
@@ -66,6 +72,7 @@ export function addToSearchHistory(item: Omit<SearchHistoryItem, 'timestamp' | '
     const trimmed = filtered.slice(0, MAX_HISTORY_ITEMS);
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+    console.log('[SearchHistory] Saved:', newItem.pair, newItem.poolAddress.slice(0, 10) + '...');
   } catch (e) {
     console.error('Failed to save search history:', e);
   }
