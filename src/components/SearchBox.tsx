@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, X, Loader2 } from 'lucide-react';
+import { Search, X, Loader2, History } from 'lucide-react';
 import { SearchResult, SUPPORTED_CHAINS } from '@/types';
 import { searchPools, formatNumber, formatPrice } from '@/lib/api';
 import TokenLogo, { TokenPairLogos } from '@/components/TokenLogo';
 import { useTranslations, Translations } from '@/lib/i18n';
+import { getSearchHistory, SearchHistoryItem } from '@/lib/search-history';
 
 // Get DEX display name with version (V2/V3/V4)
 function getDexDisplayName(dex: string, poolAddress: string): string {
@@ -68,9 +69,15 @@ export default function SearchBox() {
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [isBatchSearch, setIsBatchSearch] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  // Load search history on mount
+  useEffect(() => {
+    setSearchHistory(getSearchHistory());
+  }, []);
 
   // Debounced search - supports batch search with commas
   useEffect(() => {
@@ -128,6 +135,12 @@ export default function SearchBox() {
 
   const handleSelect = (result: SearchResult) => {
     router.push(`/pool/${result.chainId}/${result.poolAddress}`);
+    setShowResults(false);
+    setQuery('');
+  };
+
+  const handleHistorySelect = (item: SearchHistoryItem) => {
+    router.push(`/pool/${item.chainId}/${item.poolAddress}`);
     setShowResults(false);
     setQuery('');
   };
@@ -217,6 +230,39 @@ export default function SearchBox() {
               />
             ))
           )}
+        </div>
+      )}
+
+      {/* Search History Dropdown - show when focused with no query */}
+      {showResults && query.length < 2 && !loading && searchHistory.length > 0 && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-[#161b22] border border-[#30363d] rounded-xl shadow-xl overflow-hidden z-50 max-h-[400px] overflow-y-auto">
+          <div className="px-4 py-2 border-b border-[#30363d] flex items-center gap-1.5 text-xs text-gray-500">
+            <History size={14} />
+            <span>Recent</span>
+          </div>
+          {searchHistory.slice(0, 8).map((item) => (
+            <button
+              key={`history-${item.chainId}-${item.poolAddress}`}
+              onClick={() => handleHistorySelect(item)}
+              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#21262d] transition-colors text-left"
+            >
+              {item.logo ? (
+                <img src={item.logo} alt={item.symbol} className="w-8 h-8 rounded-full" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-[#30363d] flex items-center justify-center text-sm">
+                  {item.symbol.charAt(0)}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{item.pair}</span>
+                  {item.chainLogo && (
+                    <img src={item.chainLogo} alt="" className="w-4 h-4 opacity-60" />
+                  )}
+                </div>
+              </div>
+            </button>
+          ))}
         </div>
       )}
 
