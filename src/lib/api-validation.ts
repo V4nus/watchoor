@@ -67,10 +67,21 @@ export function isValidAddress(address: string): boolean {
 }
 
 /**
- * Validate Ethereum pool ID (V4 pools are 64 hex chars, V3 are 40)
+ * Validate pool ID format
+ * - EVM V3: 0x + 40 hex chars
+ * - EVM V4: 0x + 64 hex chars
+ * - Solana: 32-44 base58 chars
  */
 export function isValidPoolId(poolId: string): boolean {
-  return /^0x[a-fA-F0-9]{40}$/.test(poolId) || /^0x[a-fA-F0-9]{64}$/.test(poolId);
+  // EVM format (0x prefix)
+  if (/^0x[a-fA-F0-9]{40}$/.test(poolId) || /^0x[a-fA-F0-9]{64}$/.test(poolId)) {
+    return true;
+  }
+  // Solana base58 format (32-44 alphanumeric chars, no 0/O/I/l)
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(poolId)) {
+    return true;
+  }
+  return false;
 }
 
 /**

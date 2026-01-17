@@ -110,6 +110,21 @@ const INTERVAL_TO_GECKO: Record<TimeInterval, { aggregate: number; timeframe: st
 };
 
 /**
+ * Get default token decimals based on chain and symbol
+ * Solana tokens typically use 6 or 9 decimals, not 18 like EVM
+ */
+function getDefaultDecimals(symbol: string, chainId: string): number {
+  if (chainId !== 'solana') return 18; // EVM standard
+  const upperSymbol = symbol.toUpperCase();
+  // Known Solana stablecoins use 6 decimals
+  if (['USDC', 'USDT', 'BUSD', 'DAI', 'USDH', 'UXD'].includes(upperSymbol)) {
+    return 6;
+  }
+  // SOL and most SPL tokens use 9 decimals
+  return 9;
+}
+
+/**
  * Fetch pool/pair information from DexScreener (with caching)
  */
 export async function getPoolInfo(chainId: string, poolAddress: string): Promise<PoolInfo | null> {
@@ -138,14 +153,14 @@ export async function getPoolInfo(chainId: string, poolAddress: string): Promise
         address: pair.baseToken.address,
         name: pair.baseToken.name,
         symbol: pair.baseToken.symbol,
-        decimals: 18, // DexScreener doesn't provide decimals
+        decimals: getDefaultDecimals(pair.baseToken.symbol, pair.chainId),
         imageUrl: pair.info?.imageUrl, // Token logo from DexScreener
       },
       quoteToken: {
         address: pair.quoteToken.address,
         name: pair.quoteToken.name,
         symbol: pair.quoteToken.symbol,
-        decimals: 18,
+        decimals: getDefaultDecimals(pair.quoteToken.symbol, pair.chainId),
         // Quote token logo - try to get from common tokens or leave undefined
       },
       priceUsd: parseFloat(pair.priceUsd) || 0,
@@ -199,14 +214,14 @@ export async function searchPools(query: string): Promise<SearchResult[]> {
         address: pair.baseToken.address,
         name: pair.baseToken.name,
         symbol: pair.baseToken.symbol,
-        decimals: 18,
+        decimals: getDefaultDecimals(pair.baseToken.symbol, pair.chainId),
         imageUrl: pair.info?.imageUrl,
       },
       quoteToken: {
         address: pair.quoteToken.address,
         name: pair.quoteToken.name,
         symbol: pair.quoteToken.symbol,
-        decimals: 18,
+        decimals: getDefaultDecimals(pair.quoteToken.symbol, pair.chainId),
       },
       dex: pair.dexId,
       priceUsd: parseFloat(pair.priceUsd) || 0,

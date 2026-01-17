@@ -53,6 +53,7 @@ const WalletButton = dynamic(() => import('@/components/WalletButton'), {
   ),
 });
 
+
 interface PoolPageClientProps {
   pool: PoolInfo;
 }
@@ -466,18 +467,21 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
             liquidityQuote={pool.liquidityQuote}
             baseTokenAddress={pool.baseToken.address}
             quoteTokenAddress={pool.quoteToken.address}
+            token0Decimals={pool.baseToken.decimals}
+            token1Decimals={pool.quoteToken.decimals}
+            dexId={pool.dex}
             onPrecisionChange={handlePrecisionChange}
             onOrderDataChange={handleOrderDataChange}
           />
         </div>
 
-        {/* Middle: Chart - Hidden on mobile when not active */}
+        {/* Middle: Chart + Liquidity Density - Hidden on mobile when not active */}
         <div
-          className={`flex-1 flex flex-col min-w-0 min-h-[400px] lg:min-h-0 ${
+          className={`flex-1 flex flex-col min-w-0 min-h-[400px] lg:min-h-0 gap-2 ${
             mobileTab !== 'chart' ? 'hidden lg:flex' : ''
           }`}
         >
-          {/* Chart - full height */}
+          {/* Chart - takes most space */}
           <div className="flex-1 bg-[#161b22] rounded-lg border border-[#30363d] overflow-hidden">
             <Chart
               chainId={pool.chainId}
@@ -496,6 +500,7 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
               orderBookData={orderBookData}
             />
           </div>
+
         </div>
 
         {/* Right: Swap + Transactions stacked - Hidden on mobile when not active */}

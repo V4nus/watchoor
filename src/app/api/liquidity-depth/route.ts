@@ -26,6 +26,11 @@ import {
   validatePositiveInteger,
   validationError,
 } from '@/lib/api-validation';
+import {
+  getSolanaLiquidityDepth,
+  generateFallbackDepth,
+  detectSolanaDexType,
+} from '@/lib/solana-liquidity';
 
 // ============ Types ============
 
@@ -553,9 +558,19 @@ async function getV3Depth(
 
   const tickToPriceUsd = (tick: number): number => {
     const safeTick = Math.max(-887272, Math.min(887272, tick));
-    const price = priceUsd * Math.pow(1.0001, safeTick - currentTick);
-    if (!isFinite(price) || price > 1e18) return 1e18;
-    if (price < 1e-18) return 1e-18;
+    const tickDiff = safeTick - currentTick;
+
+    // For extreme tick differences, use a more conservative approach
+    // Prevent Math.pow overflow by clamping the exponent
+    const clampedDiff = Math.max(-100000, Math.min(100000, tickDiff));
+
+    const price = priceUsd * Math.pow(1.0001, clampedDiff);
+
+    // Return reasonable bounds instead of extreme values
+    if (!isFinite(price)) return clampedDiff > 0 ? priceUsd * 1e6 : priceUsd / 1e6;
+    if (price > priceUsd * 1e6) return priceUsd * 1e6; // Max 1 million times current price
+    if (price < priceUsd / 1e6) return priceUsd / 1e6; // Min 1/1millionth of current price
+
     return price;
   };
 
@@ -634,21 +649,39 @@ async function getV3Depth(
     });
   }
 
-  // Calculate token amounts
+  // Calculate token amounts with safe math for extreme ticks
   const calculateToken0Amount = (L: bigint, tickLower: number, tickUpper: number): number => {
-    const sqrtPriceLower = Math.pow(1.0001, tickLower / 2);
-    const sqrtPriceUpper = Math.pow(1.0001, tickUpper / 2);
+    // Clamp ticks to safe range to prevent Math.pow overflow
+    const safeLower = Math.max(-887272, Math.min(887272, tickLower));
+    const safeUpper = Math.max(-887272, Math.min(887272, tickUpper));
+
+    const sqrtPriceLower = Math.pow(1.0001, safeLower / 2);
+    const sqrtPriceUpper = Math.pow(1.0001, safeUpper / 2);
+
     if (!isFinite(sqrtPriceLower) || !isFinite(sqrtPriceUpper) || sqrtPriceLower === 0 || sqrtPriceUpper === 0) return 0;
+
     const amount = Number(L) * (1 / sqrtPriceLower - 1 / sqrtPriceUpper) / (10 ** dec0);
-    return isFinite(amount) && amount > 0 ? amount : 0;
+
+    // Validate result is reasonable (not overflow)
+    if (!isFinite(amount) || amount <= 0 || amount > 1e15) return 0;
+    return amount;
   };
 
   const calculateToken1Amount = (L: bigint, tickLower: number, tickUpper: number): number => {
-    const sqrtPriceLower = Math.pow(1.0001, tickLower / 2);
-    const sqrtPriceUpper = Math.pow(1.0001, tickUpper / 2);
+    // Clamp ticks to safe range to prevent Math.pow overflow
+    const safeLower = Math.max(-887272, Math.min(887272, tickLower));
+    const safeUpper = Math.max(-887272, Math.min(887272, tickUpper));
+
+    const sqrtPriceLower = Math.pow(1.0001, safeLower / 2);
+    const sqrtPriceUpper = Math.pow(1.0001, safeUpper / 2);
+
     if (!isFinite(sqrtPriceLower) || !isFinite(sqrtPriceUpper)) return 0;
+
     const amount = Number(L) * (sqrtPriceUpper - sqrtPriceLower) / (10 ** dec1);
-    return isFinite(amount) && amount > 0 ? amount : 0;
+
+    // Validate result is reasonable (not overflow)
+    if (!isFinite(amount) || amount <= 0 || amount > 1e15) return 0;
+    return amount;
   };
 
   // Build order book
@@ -670,6 +703,12 @@ async function getV3Depth(
     const tickLower = prevTickAbove;
     const tickUpper = tick;
 
+    // Log extreme tick ranges for debugging
+    const tickRange = tickUpper - tickLower;
+    if (tickRange > 50000) {
+      console.log(`[V3 Extreme Range] ASK tick range: [${tickLower}, ${tickUpper}], Δ=${tickRange}`);
+    }
+
     if (askLiquidity > 0n) {
       const priceL = tickToPriceUsd(tickUpper);
       let baseAmount: number, quoteAmount: number, liquidityUSD: number;
@@ -682,6 +721,14 @@ async function getV3Depth(
         baseAmount = calculateToken1Amount(askLiquidity, tickLower, tickUpper);
         quoteAmount = calculateToken0Amount(askLiquidity, tickLower, tickUpper);
         liquidityUSD = baseAmount * priceUsd;
+      }
+
+      // Skip entries with zero or invalid token amounts (from overflow protection)
+      if (baseAmount === 0 && quoteAmount === 0) {
+        console.log(`[V3 Skip] Tick range [${tickLower}, ${tickUpper}] resulted in zero amounts (likely overflow)`);
+        askLiquidity = askLiquidity + (tickLiquidityMap.get(tick) || 0n);
+        prevTickAbove = tick;
+        continue;
       }
 
       if (liquidityUSD > 0.01 && liquidityUSD < 1e12) {
@@ -709,6 +756,12 @@ async function getV3Depth(
     const tickUpper = prevTickBelow;
     const tickLower = tick;
 
+    // Log extreme tick ranges for debugging
+    const tickRange = tickUpper - tickLower;
+    if (tickRange > 50000) {
+      console.log(`[V3 Extreme Range] BID tick range: [${tickLower}, ${tickUpper}], Δ=${tickRange}`);
+    }
+
     if (bidLiquidity > 0n) {
       const priceL = tickToPriceUsd(tickUpper);
       let baseAmount: number, quoteAmount: number, liquidityUSD: number;
@@ -721,6 +774,14 @@ async function getV3Depth(
         baseAmount = calculateToken1Amount(bidLiquidity, tickLower, tickUpper);
         quoteAmount = calculateToken0Amount(bidLiquidity, tickLower, tickUpper);
         liquidityUSD = quoteAmount * quoteUsdPrice;
+      }
+
+      // Skip entries with zero or invalid token amounts (from overflow protection)
+      if (baseAmount === 0 && quoteAmount === 0) {
+        console.log(`[V3 Skip] Tick range [${tickLower}, ${tickUpper}] resulted in zero amounts (likely overflow)`);
+        bidLiquidity = bidLiquidity - (tickLiquidityMap.get(tick) || 0n);
+        prevTickBelow = tick;
+        continue;
       }
 
       if (liquidityUSD > 0.01 && liquidityUSD < 1e12) {
@@ -935,14 +996,87 @@ export async function GET(request: NextRequest) {
   }
   const precision = precisionValidation.value;
 
-  // Check cache
-  const cacheKey = `${chainId}-${poolAddress}-${maxLevels}-${precision}`;
+  // Additional params for Solana
+  const dexId = searchParams.get('dexId') || '';
+  const baseSymbol = searchParams.get('baseSymbol') || 'TOKEN';
+  const quoteSymbol = searchParams.get('quoteSymbol') || 'SOL';
+  const baseDecimals = parseInt(searchParams.get('baseDecimals') || '9');
+  const quoteDecimals = parseInt(searchParams.get('quoteDecimals') || '9');
+  const liquidityUsd = parseFloat(searchParams.get('liquidityUsd') || '0');
+  const baseTokenAddress = searchParams.get('token0Address') || ''; // Used to match token order
+
+  // Check cache (include dexId to prevent wrong poolType from cached results)
+  const cacheKey = `${chainId}-${poolAddress}-${maxLevels}-${precision}-${dexId}`;
   const cached = liquidityCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+  const cacheAge = cached ? Date.now() - cached.timestamp : Infinity;
+
+  // Return fresh cache immediately
+  if (cached && cacheAge < CACHE_TTL_MS) {
     return NextResponse.json({ success: true, data: cached.data, source: 'cache' });
   }
 
   try {
+    // Handle Solana separately
+    if (chainId === 'solana') {
+      console.log(`[LiquidityDepth] Solana pool: ${poolAddress.slice(0, 10)}..., DEX: ${dexId}`);
+
+      // maxLevels=0 means no limit, use 150 for wide price coverage
+      const effectiveMaxLevels = maxLevels > 0 ? maxLevels : 150;
+
+      let result = await getSolanaLiquidityDepth(
+        poolAddress,
+        priceUsd,
+        baseSymbol,
+        quoteSymbol,
+        baseDecimals,
+        quoteDecimals,
+        dexId,
+        effectiveMaxLevels,
+        baseTokenAddress,
+        liquidityUsd // Pass DexScreener liquidity for better estimation
+      );
+
+      // If RPC fails, prefer stale cache over generated fallback
+      if (!result) {
+        // First try: use stale cache (up to 60 seconds old)
+        if (cached && cacheAge < 60000) {
+          console.log(`[LiquidityDepth] RPC failed, using stale cache (${Math.round(cacheAge / 1000)}s old)`);
+          return NextResponse.json({ success: true, data: cached.data, source: 'stale-cache' });
+        }
+
+        // Second try: generate fallback from DexScreener liquidity
+        if (liquidityUsd > 0) {
+          console.log('[LiquidityDepth] RPC failed, no valid cache, using fallback');
+          const dexType = detectSolanaDexType(dexId);
+          result = generateFallbackDepth(
+            priceUsd,
+            liquidityUsd,
+            baseSymbol,
+            quoteSymbol,
+            baseDecimals,
+            quoteDecimals,
+            effectiveMaxLevels,
+            dexType
+          );
+        }
+      }
+
+      if (!result) {
+        // Last resort: return very stale cache if available
+        if (cached) {
+          console.log(`[LiquidityDepth] All sources failed, using very stale cache (${Math.round(cacheAge / 1000)}s old)`);
+          return NextResponse.json({ success: true, data: cached.data, source: 'stale-cache' });
+        }
+        return NextResponse.json({ error: 'Failed to fetch Solana liquidity data' }, { status: 500 });
+      }
+
+      // Cache result
+      liquidityCache.set(cacheKey, { data: result as unknown as DepthData, timestamp: Date.now() });
+
+      return NextResponse.json({ success: true, data: result, source: 'solana-rpc' });
+    }
+
+    // EVM chains
     const chain = CHAINS[chainId];
     const rpcUrl = RPC_URLS[chainId];
 

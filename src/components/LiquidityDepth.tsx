@@ -26,6 +26,7 @@ interface LiquidityDepthProps {
   quoteTokenAddress?: string; // For V4 pools
   token0Decimals?: number;
   token1Decimals?: number;
+  dexId?: string; // DEX identifier (e.g., "pumpswap", "raydium_clmm", "orca")
   onPrecisionChange?: (precision: number) => void; // Callback when precision changes
   onOrderDataChange?: (data: AggregatedOrderData) => void; // Callback when aggregated data changes
 }
@@ -52,6 +53,9 @@ export default function LiquidityDepth({
   liquidityQuote,
   baseTokenAddress,
   quoteTokenAddress,
+  token0Decimals,
+  token1Decimals,
+  dexId,
   onPrecisionChange,
   onOrderDataChange,
 }: LiquidityDepthProps) {
@@ -66,7 +70,7 @@ export default function LiquidityDepth({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [poolVersion, setPoolVersion] = useState<string | null>(null); // V2, V3, V4
-  const [precisionIndex, setPrecisionIndex] = useState<number>(1); // 0=fine, 1=medium, 2=coarse
+  const [precisionIndex, setPrecisionIndex] = useState<number>(1); // 0=very fine, 1=fine, 2=medium, 3=coarse
   const [viewMode, setViewMode] = useState<ViewMode>('individual');
   const [changedValues, setChangedValues] = useState<Map<string, ChangedValue>>(new Map());
   const [quoteTokenUsdPrice, setQuoteTokenUsdPrice] = useState<number>(1);
@@ -192,6 +196,16 @@ export default function LiquidityDepth({
         }
         if (quoteTokenAddress) {
           params.set('token1Address', quoteTokenAddress);
+        }
+
+        // Add Solana-specific params
+        if (chainId === 'solana') {
+          params.set('baseSymbol', baseSymbol);
+          params.set('quoteSymbol', quoteSymbol);
+          params.set('baseDecimals', (token0Decimals || 9).toString());
+          params.set('quoteDecimals', (token1Decimals || 9).toString());
+          if (dexId) params.set('dexId', dexId);
+          if (liquidityUsd) params.set('liquidityUsd', liquidityUsd.toString());
         }
 
         // Add timeout to prevent infinite loading
@@ -376,21 +390,16 @@ export default function LiquidityDepth({
       }
     };
 
-    if (chainId !== 'solana') {
-      fetchData();
-      // Update every 6 seconds (API has 5-second cache, so we poll slightly after cache expires for fresh data)
-      const interval = setInterval(fetchData, 6000);
-      return () => {
-        clearInterval(interval);
-        // Cancel any pending request on cleanup
-        if (abortControllerRef.current) {
-          abortControllerRef.current.abort();
-        }
-      };
-    } else {
-      setError('Solana not supported yet');
-      setLoading(false);
-    }
+    fetchData();
+    // Update every 6 seconds (API has 5-second cache, so we poll slightly after cache expires for fresh data)
+    const interval = setInterval(fetchData, 6000);
+    return () => {
+      clearInterval(interval);
+      // Cancel any pending request on cleanup
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, [chainId, poolAddress, priceUsd, baseTokenAddress, quoteTokenAddress, baseSymbol, quoteSymbol]);
 
   // Calculate dynamic precision options based on current price
@@ -400,13 +409,14 @@ export default function LiquidityDepth({
     // Find the order of magnitude of the price
     const magnitude = Math.floor(Math.log10(price));
 
-    // Generate 3 precision levels around the price's magnitude
-    // Fine (1/100 of price), Medium (1/10 of price), Coarse (same magnitude)
-    const base = Math.pow(10, magnitude - 2);
+    // Generate 4 precision levels for finer control
+    // Very Fine (1/1000), Fine (1/100), Medium (1/10), Coarse (same magnitude)
+    const base = Math.pow(10, magnitude - 3);
     return [
-      Number(base.toPrecision(1)),
-      Number((base * 10).toPrecision(1)),
-      Number((base * 100).toPrecision(1))
+      Number(base.toPrecision(1)),           // Very fine (e.g., 0.001 for $5)
+      Number((base * 10).toPrecision(1)),    // Fine (e.g., 0.01 for $5)
+      Number((base * 100).toPrecision(1)),   // Medium (e.g., 0.1 for $5)
+      Number((base * 1000).toPrecision(1))   // Coarse (e.g., 1.0 for $5)
     ];
   };
 
@@ -424,6 +434,7 @@ export default function LiquidityDepth({
   // Notify parent when aggregated order data changes (for Chart liquidity lines)
   useEffect(() => {
     if (!onOrderDataChange) return;
+    if (!depthData || !depthData.bids.length || !depthData.asks.length) return;
 
     const filteredData = getFilteredData();
     if (!filteredData) return;
@@ -488,12 +499,19 @@ export default function LiquidityDepth({
     }
 
     // Convert back to array format
+    // For bids: liquidityUSD = token1Amount (USDC is already USD)
+    // For asks: recalculate liquidityUSD based on aggregated price level
     const aggregatedBids = Array.from(bidMap.entries())
       .map(([price, data]) => ({ price, ...data }))
       .sort((a, b) => b.price - a.price); // Descending
 
     const aggregatedAsks = Array.from(askMap.entries())
-      .map(([price, data]) => ({ price, ...data }))
+      .map(([price, data]) => ({
+        price,
+        token0Amount: data.token0Amount,
+        token1Amount: data.token0Amount * price, // Recalculate based on aggregated price
+        liquidityUSD: data.token0Amount * price, // Recalculate based on aggregated price
+      }))
       .sort((a, b) => a.price - b.price); // Ascending
 
     return { ...depthData, bids: aggregatedBids, asks: aggregatedAsks };

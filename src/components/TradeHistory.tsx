@@ -199,13 +199,13 @@ export default function TradeHistory({
                 <td colSpan={5} className="text-center text-gray-500 py-8">{t.tradeHistory.noTrades}</td>
               </tr>
             ) : (
-              trades.map((trade) => {
+              trades.map((trade, index) => {
                 const isNew = newTradeIds.has(trade.txHash);
                 const isBuy = trade.type === 'buy';
 
                 return (
                   <tr
-                    key={trade.txHash}
+                    key={`${trade.txHash}-${index}`}
                     className={`hover:bg-[#21262d] transition-colors ${
                       isNew ? (isBuy ? 'animate-flash-green' : 'animate-flash-red') : ''
                     }`}
