@@ -4,11 +4,11 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { PoolInfo, SearchResult, SUPPORTED_CHAINS, TimeInterval } from '@/types';
 import { formatNumber, formatPercentage, searchPools, formatPrice } from '@/lib/api';
-import { ArrowLeft, ExternalLink, Copy, Check, Globe, Twitter, MessageCircle, Search, X, Loader2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Copy, Check, Globe, Twitter, MessageCircle, Search, X, Loader2, History } from 'lucide-react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import TokenLogo, { TokenPairLogos } from '@/components/TokenLogo';
 import { useRouter } from 'next/navigation';
-import { addToSearchHistory } from '@/lib/search-history';
+import { addToSearchHistory, getSearchHistory, SearchHistoryItem } from '@/lib/search-history';
 
 // Dynamic imports for client components
 const Chart = dynamic(() => import('@/components/Chart'), {
@@ -78,8 +78,14 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Load search history on mount
+  useEffect(() => {
+    setSearchHistory(getSearchHistory());
+  }, []);
 
   // Handle trade success - trigger chart beam effect
   const handleTradeSuccess = useCallback((tradeType: 'buy' | 'sell') => {
@@ -153,6 +159,12 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
 
   const handleSearchSelect = (result: SearchResult) => {
     router.push(`/pool/${result.chainId}/${result.poolAddress}`);
+    setShowSearchResults(false);
+    setSearchQuery('');
+  };
+
+  const handleHistorySelect = (item: SearchHistoryItem) => {
+    router.push(`/pool/${item.chainId}/${item.poolAddress}`);
     setShowSearchResults(false);
     setSearchQuery('');
   };
@@ -333,6 +345,39 @@ export default function PoolPageClient({ pool }: PoolPageClientProps) {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-medium">${formatPrice(result.priceUsd)}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Search History Dropdown - show when focused with no query */}
+            {showSearchResults && searchQuery.length < 2 && !searchLoading && searchHistory.length > 0 && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-[#161b22] border border-[#30363d] rounded-lg shadow-xl overflow-hidden z-50 max-h-[400px] overflow-y-auto">
+                <div className="px-3 py-2 border-b border-[#30363d] flex items-center gap-1.5 text-xs text-gray-500">
+                  <History size={12} />
+                  <span>Recent</span>
+                </div>
+                {searchHistory.slice(0, 8).map((item) => (
+                  <button
+                    key={`history-${item.chainId}-${item.poolAddress}`}
+                    onClick={() => handleHistorySelect(item)}
+                    className="w-full px-3 py-2 flex items-center gap-2 hover:bg-[#21262d] transition-colors text-left"
+                  >
+                    {item.logo ? (
+                      <img src={item.logo} alt={item.symbol} className="w-6 h-6 rounded-full" />
+                    ) : (
+                      <div className="w-6 h-6 rounded-full bg-[#30363d] flex items-center justify-center text-xs">
+                        {item.symbol.charAt(0)}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-sm">{item.pair}</span>
+                        {item.chainLogo && (
+                          <img src={item.chainLogo} alt="" className="w-3.5 h-3.5 opacity-60" />
+                        )}
+                      </div>
                     </div>
                   </button>
                 ))}
