@@ -222,7 +222,11 @@ async function getV4Depth(
   poolId: string,
   priceUsd: number,
   maxLevels: number,
-  precision: number
+  precision: number,
+  baseSymbol: string,
+  quoteSymbol: string,
+  baseDecimals: number,
+  quoteDecimals: number
 ): Promise<DepthData | null> {
   const stateViewAddr = V4_STATE_VIEW[chainId];
   if (!stateViewAddr) return null;
@@ -326,24 +330,28 @@ async function getV4Depth(
     });
   }
 
-  // Calculate token amounts
-  const calculateUsdcAmount = (liquidity: bigint, tickLower: number, tickUpper: number): number => {
+  // Calculate token amounts using actual decimals
+  // Quote token amount (what you pay with for bids)
+  const calculateQuoteAmount = (liquidity: bigint, tickLower: number, tickUpper: number): number => {
     const L = Number(liquidity);
     if (L === 0) return 0;
     const sqrtPriceLower = Math.pow(1.0001, tickLower / 2);
     const sqrtPriceUpper = Math.pow(1.0001, tickUpper / 2);
     if (!isFinite(sqrtPriceLower) || !isFinite(sqrtPriceUpper) || sqrtPriceLower === 0 || sqrtPriceUpper === 0) return 0;
-    const amount = L * (1 / sqrtPriceLower - 1 / sqrtPriceUpper) / 1e6;
+    const divisor = Math.pow(10, quoteDecimals);
+    const amount = L * (1 / sqrtPriceLower - 1 / sqrtPriceUpper) / divisor;
     return isFinite(amount) && amount > 0 ? amount : 0;
   };
 
-  const calculatePingAmount = (liquidity: bigint, tickLower: number, tickUpper: number): number => {
+  // Base token amount (what you get for asks)
+  const calculateBaseAmount = (liquidity: bigint, tickLower: number, tickUpper: number): number => {
     const L = Number(liquidity);
     if (L === 0) return 0;
     const sqrtPriceLower = Math.pow(1.0001, tickLower / 2);
     const sqrtPriceUpper = Math.pow(1.0001, tickUpper / 2);
     if (!isFinite(sqrtPriceLower) || !isFinite(sqrtPriceUpper)) return 0;
-    const amount = L * (sqrtPriceUpper - sqrtPriceLower) / 1e18;
+    const divisor = Math.pow(10, baseDecimals);
+    const amount = L * (sqrtPriceUpper - sqrtPriceLower) / divisor;
     return isFinite(amount) && amount > 0 ? amount : 0;
   };
 
@@ -355,23 +363,24 @@ async function getV4Depth(
   const maxReasonableAmount = (Number(poolLiquidity) / 1e18) * 10 * 1e6;
 
   // Subdivide helpers
+  // For bids: user pays quote token to buy base token at lower prices
   const subdivideBidRange = (tickLower: number, tickUpper: number, liquidity: bigint, precisionStep: number): LiquidityLevel[] => {
     const levels: LiquidityLevel[] = [];
     const priceUpper = tickToPrice(tickLower, decimalAdjust);
     const priceLower = tickToPrice(tickUpper, decimalAdjust);
 
     if (precisionStep <= 0 || precisionStep >= priceUpper - priceLower) {
-      const usdcAmount = calculateUsdcAmount(liquidity, tickLower, tickUpper);
-      if (usdcAmount > 0.01 && usdcAmount < maxReasonableUsdc) {
+      const baseAmount = calculateBaseAmount(liquidity, tickLower, tickUpper);
+      if (baseAmount > 0.01 && baseAmount < maxReasonableAmount) {
         levels.push({
           price: priceLower,
           priceLower,
           priceUpper,
           tickLower,
           tickUpper,
-          token0Amount: usdcAmount,
+          token0Amount: baseAmount,
           token1Amount: 0,
-          liquidityUSD: usdcAmount,
+          liquidityUSD: baseAmount * priceLower, // USD = base amount * price
           liquidity: liquidity.toString(),
         });
       }
@@ -388,17 +397,17 @@ async function getV4Depth(
       const subTickUpper = priceToTick(currentPriceLow, decimalAdjust);
 
       if (subTickUpper > subTickLower) {
-        const usdcAmount = calculateUsdcAmount(liquidity, subTickLower, subTickUpper);
-        if (usdcAmount > 0.001 && usdcAmount < maxReasonableUsdc) {
+        const baseAmount = calculateBaseAmount(liquidity, subTickLower, subTickUpper);
+        if (baseAmount > 0.001 && baseAmount < maxReasonableAmount) {
           levels.push({
             price: currentPriceLow,
             priceLower: currentPriceLow,
             priceUpper: currentPriceHigh,
             tickLower: subTickLower,
             tickUpper: subTickUpper,
-            token0Amount: usdcAmount,
+            token0Amount: baseAmount,
             token1Amount: 0,
-            liquidityUSD: usdcAmount,
+            liquidityUSD: baseAmount * currentPriceLow, // USD = base amount * price
             liquidity: liquidity.toString(),
           });
         }
@@ -408,23 +417,24 @@ async function getV4Depth(
     return levels;
   };
 
+  // For asks: user sells base token to get quote token at higher prices
   const subdivideAskRange = (tickLower: number, tickUpper: number, liquidity: bigint, precisionStep: number): LiquidityLevel[] => {
     const levels: LiquidityLevel[] = [];
     const priceLower = tickToPrice(tickUpper, decimalAdjust);
     const priceUpper = tickToPrice(tickLower, decimalAdjust);
 
     if (precisionStep <= 0 || precisionStep >= priceUpper - priceLower) {
-      const tokenAmount = calculatePingAmount(liquidity, tickLower, tickUpper);
-      if (tokenAmount > 0.01 && tokenAmount < maxReasonableAmount) {
+      const baseAmount = calculateBaseAmount(liquidity, tickLower, tickUpper);
+      if (baseAmount > 0.01 && baseAmount < maxReasonableAmount) {
         levels.push({
           price: priceUpper,
           priceLower,
           priceUpper,
           tickLower,
           tickUpper,
-          token0Amount: tokenAmount,
+          token0Amount: baseAmount,
           token1Amount: 0,
-          liquidityUSD: tokenAmount * priceUsd,
+          liquidityUSD: baseAmount * priceUsd,
           liquidity: liquidity.toString(),
         });
       }
@@ -441,17 +451,17 @@ async function getV4Depth(
       const subTickUpper = priceToTick(currentPriceLow, decimalAdjust);
 
       if (subTickUpper > subTickLower) {
-        const pingAmount = calculatePingAmount(liquidity, subTickLower, subTickUpper);
-        if (pingAmount > 0.001 && pingAmount < maxReasonableAmount) {
+        const baseAmount = calculateBaseAmount(liquidity, subTickLower, subTickUpper);
+        if (baseAmount > 0.001 && baseAmount < maxReasonableAmount) {
           levels.push({
             price: currentPriceHigh,
             priceLower: currentPriceLow,
             priceUpper: currentPriceHigh,
             tickLower: subTickLower,
             tickUpper: subTickUpper,
-            token0Amount: pingAmount,
+            token0Amount: baseAmount,
             token1Amount: 0,
-            liquidityUSD: pingAmount * priceUsd,
+            liquidityUSD: baseAmount * priceUsd,
             liquidity: liquidity.toString(),
           });
         }
@@ -498,16 +508,16 @@ async function getV4Depth(
   const limitedBids = maxLevels > 0 ? bids.slice(0, maxLevels) : bids;
   const limitedAsks = maxLevels > 0 ? asks.slice(0, maxLevels) : asks;
 
-  console.log(`[LiquidityDepth V4] ${limitedBids.length} bids, ${limitedAsks.length} asks`);
+  console.log(`[LiquidityDepth V4] ${limitedBids.length} bids, ${limitedAsks.length} asks for ${baseSymbol}/${quoteSymbol}`);
 
   return {
     bids: limitedBids,
     asks: limitedAsks,
     currentPrice: priceUsd,
-    token0Symbol: 'USDC',
-    token1Symbol: 'TOKEN',
-    token0Decimals: 6,
-    token1Decimals: 18,
+    token0Symbol: baseSymbol,
+    token1Symbol: quoteSymbol,
+    token0Decimals: baseDecimals,
+    token1Decimals: quoteDecimals,
     poolType: 'v4',
   };
 }
@@ -1097,7 +1107,7 @@ export async function GET(request: NextRequest) {
 
     switch (poolType) {
       case 'v4':
-        result = await getV4Depth(client, chainId, poolAddress, priceUsd, maxLevels, precision);
+        result = await getV4Depth(client, chainId, poolAddress, priceUsd, maxLevels, precision, baseSymbol, quoteSymbol, baseDecimals, quoteDecimals);
         break;
       case 'v3':
         result = await getV3Depth(client, poolAddress, priceUsd, maxLevels);
