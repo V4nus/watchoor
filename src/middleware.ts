@@ -3,7 +3,8 @@ import type { NextRequest } from 'next/server';
 
 // x402 配置 - 直接在 middleware 中定义以避免 edge runtime 问题
 const X402_PAY_TO_ADDRESS = process.env.X402_PAY_TO_ADDRESS || '0x0000000000000000000000000000000000000000';
-const X402_NETWORK = process.env.X402_NETWORK === 'mainnet' ? 'eip155:8453' : 'eip155:84532';
+// 直接使用 Base Mainnet，避免环境变量问题
+const X402_NETWORK = 'eip155:8453';
 
 // USDC on Base
 const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
