@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { DepthData } from '@/lib/liquidity';
 import { formatNumber } from '@/lib/api';
 import { isStablecoin } from '@/lib/quote-prices';
 import { getRealtimeService, TradeEvent } from '@/lib/realtime';
+import { getPoolEventsService, detectPoolType, PoolEvent } from '@/lib/pool-events';
 import { useTranslations } from '@/lib/i18n/context';
 import { TimeInterval } from '@/types';
 
@@ -413,10 +414,30 @@ export default function LiquidityDepth({
     };
 
     fetchData();
-    // Update every 6 seconds (API has 5-second cache, so we poll slightly after cache expires for fresh data)
-    const interval = setInterval(fetchData, 6000);
+
+    // Subscribe to real-time pool events for instant updates
+    const poolType = detectPoolType(poolAddress);
+    const poolEventsService = getPoolEventsService();
+
+    const handlePoolEvent = (event: PoolEvent) => {
+      console.log(`[LiquidityDepth] Pool event: ${event.type}`);
+      // Trigger immediate refresh on any pool event
+      fetchData();
+    };
+
+    const unsubscribe = poolEventsService.subscribe(
+      chainId,
+      poolAddress,
+      poolType,
+      handlePoolEvent
+    );
+
+    // Fallback: Also poll every 10 seconds in case events are missed
+    const fallbackInterval = setInterval(fetchData, 10000);
+
     return () => {
-      clearInterval(interval);
+      unsubscribe();
+      clearInterval(fallbackInterval);
       // Cancel any pending request on cleanup
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();

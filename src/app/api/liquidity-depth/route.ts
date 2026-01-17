@@ -65,7 +65,7 @@ interface CacheEntry {
 }
 
 const liquidityCache = new Map<string, CacheEntry>();
-const CACHE_TTL_MS = 5000; // 5 seconds
+const CACHE_TTL_MS = 2000; // 2 seconds - shorter for real-time updates
 
 // ============ Chain Config ============
 
