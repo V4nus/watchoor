@@ -529,10 +529,15 @@ export default function LiquidityDepth({
     }
 
     // Convert back to array format
-    // For bids: liquidityUSD = token1Amount (USDC is already USD)
-    // For asks: recalculate liquidityUSD based on aggregated price level
+    // For both bids and asks: recalculate liquidityUSD based on base token amount * price
+    // This ensures consistent USD calculation regardless of token ordering
     const aggregatedBids = Array.from(bidMap.entries())
-      .map(([price, data]) => ({ price, ...data }))
+      .map(([price, data]) => ({
+        price,
+        token0Amount: data.token0Amount,
+        token1Amount: data.token1Amount,
+        liquidityUSD: data.token0Amount * price, // Recalculate: base amount * price in USD
+      }))
       .sort((a, b) => b.price - a.price); // Descending
 
     const aggregatedAsks = Array.from(askMap.entries())
