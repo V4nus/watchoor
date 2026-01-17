@@ -223,13 +223,36 @@ async function getV4Depth(
   priceUsd: number,
   maxLevels: number,
   precision: number,
-  baseSymbol: string,
-  quoteSymbol: string,
-  baseDecimals: number,
-  quoteDecimals: number
+  baseTokenAddress: string,
+  quoteTokenAddress: string
 ): Promise<DepthData | null> {
   const stateViewAddr = V4_STATE_VIEW[chainId];
   if (!stateViewAddr) return null;
+
+  // Fetch token info from chain if addresses provided
+  let baseSymbol = 'TOKEN';
+  let quoteSymbol = 'QUOTE';
+  let baseDecimals = 18;
+  let quoteDecimals = 18;
+
+  if (baseTokenAddress && quoteTokenAddress) {
+    try {
+      const [baseDecimalsResult, quoteDecimalsResult, baseSymbolResult, quoteSymbolResult] = await Promise.all([
+        client.readContract({ address: baseTokenAddress as `0x${string}`, abi: ERC20_ABI, functionName: 'decimals' }),
+        client.readContract({ address: quoteTokenAddress as `0x${string}`, abi: ERC20_ABI, functionName: 'decimals' }),
+        client.readContract({ address: baseTokenAddress as `0x${string}`, abi: ERC20_ABI, functionName: 'symbol' }),
+        client.readContract({ address: quoteTokenAddress as `0x${string}`, abi: ERC20_ABI, functionName: 'symbol' }),
+      ]);
+      baseDecimals = Number(baseDecimalsResult);
+      quoteDecimals = Number(quoteDecimalsResult);
+      baseSymbol = baseSymbolResult as string;
+      quoteSymbol = quoteSymbolResult as string;
+      console.log(`[V4] Fetched token info: ${baseSymbol}(${baseDecimals}) / ${quoteSymbol}(${quoteDecimals})`);
+    } catch (err) {
+      console.error('[V4] Failed to fetch token info from chain:', err);
+      // Continue with defaults
+    }
+  }
 
   // Get pool state
   const [slot0Result, liquidityResult] = await Promise.all([
@@ -1107,7 +1130,7 @@ export async function GET(request: NextRequest) {
 
     switch (poolType) {
       case 'v4':
-        result = await getV4Depth(client, chainId, poolAddress, priceUsd, maxLevels, precision, baseSymbol, quoteSymbol, baseDecimals, quoteDecimals);
+        result = await getV4Depth(client, chainId, poolAddress, priceUsd, maxLevels, precision, baseTokenAddress, searchParams.get('token1Address') || '');
         break;
       case 'v3':
         result = await getV3Depth(client, poolAddress, priceUsd, maxLevels);

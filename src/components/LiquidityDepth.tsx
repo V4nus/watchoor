@@ -214,16 +214,18 @@ export default function LiquidityDepth({
         }
 
         // Add token info params for all chains (required for V4 pools, useful for Solana)
+        // Decimals come from pool info (getDefaultDecimals in api.ts: 18 for EVM, 6/9 for Solana)
         params.set('baseSymbol', baseSymbol);
         params.set('quoteSymbol', quoteSymbol);
-        params.set('baseDecimals', (token0Decimals || 18).toString());
-        params.set('quoteDecimals', (token1Decimals || 18).toString());
+        if (token0Decimals !== undefined) {
+          params.set('baseDecimals', token0Decimals.toString());
+        }
+        if (token1Decimals !== undefined) {
+          params.set('quoteDecimals', token1Decimals.toString());
+        }
 
         // Add Solana-specific params
         if (chainId === 'solana') {
-          // Override decimals for Solana (default 9)
-          params.set('baseDecimals', (token0Decimals || 9).toString());
-          params.set('quoteDecimals', (token1Decimals || 9).toString());
           if (dexId) params.set('dexId', dexId);
           if (liquidityUsd) params.set('liquidityUsd', liquidityUsd.toString());
         }
