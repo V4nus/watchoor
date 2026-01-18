@@ -508,7 +508,7 @@ function FeaturesScene() {
   const features = [
     { icon: '🔍', title: 'Multi-Chain', desc: 'Base · Ethereum · Solana' },
     { icon: '⚡', title: 'Real-Time', desc: 'WebSocket streaming' },
-    { icon: '🎯', title: 'V2/V3/V4', desc: 'All AMM types supported' },
+    { icon: '🎯', title: 'Any AMM', desc: 'Universal pool support' },
     { icon: '🔌', title: 'x402 API', desc: 'Pay-per-request access' },
   ];
 
