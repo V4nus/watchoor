@@ -242,7 +242,7 @@ function ProblemScene() {
           step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
         }`}
       >
-        AMM pools hide the <span className="text-red-500">real</span> liquidity
+        AMM pools hide <span className="text-red-500">true</span> depth
       </h2>
 
       <div className="grid grid-cols-3 gap-2 sm:gap-8">
@@ -253,9 +253,9 @@ function ProblemScene() {
           }`}
         >
           <div className="text-red-500 text-2xl sm:text-5xl font-bold font-mono">$10M</div>
-          <div className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-base">TVL shown</div>
+          <div className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-base">TVL</div>
           <div className="text-gray-600 text-xs sm:text-sm mt-2 sm:mt-4 hidden sm:block">
-            Looks liquid...
+            Looks deep...
           </div>
         </div>
 
@@ -273,9 +273,9 @@ function ProblemScene() {
           }`}
         >
           <div className="text-[#22c55e] text-2xl sm:text-5xl font-bold font-mono">$50K</div>
-          <div className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-base">Actual depth</div>
+          <div className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-base">Tradeable</div>
           <div className="text-gray-600 text-xs sm:text-sm mt-2 sm:mt-4 hidden sm:block">
-            Reality: 0.5% of TVL
+            Only 0.5% is real
           </div>
         </div>
       </div>
@@ -285,7 +285,7 @@ function ProblemScene() {
           step >= 3 ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        You need to see the <span className="text-[#22c55e]">order book</span>, not just the pool.
+        Stop guessing. <span className="text-[#22c55e]">Start seeing.</span>
       </p>
     </div>
   );
@@ -380,8 +380,8 @@ function SolutionScene() {
           step >= 3 ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <span className="text-white">AMM to</span>{' '}
-        <span className="text-[#22c55e]">Order Book</span>
+        <span className="text-white">Real depth.</span>{' '}
+        <span className="text-[#22c55e]">Real data.</span>
       </p>
     </div>
   );
@@ -568,7 +568,7 @@ function CTAScene() {
       </svg>
 
       <h2 className="text-3xl sm:text-5xl font-bold mb-3 sm:mb-4">
-        See what others <span className="text-[#22c55e]">can&apos;t</span>
+        See the <span className="text-[#22c55e]">depth</span>
       </h2>
 
       <p className="text-base sm:text-xl text-gray-400 mb-6 sm:mb-8">
