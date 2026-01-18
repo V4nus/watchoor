@@ -625,7 +625,7 @@ function APIProductsSection() {
     {
       id: 'orderbook',
       name: 'Order Book API',
-      description: 'Real-time bid/ask liquidity depth data for any supported pool.',
+      description: 'Real-time bid/ask depth for any pool.',
       price: '$0.01',
       endpoint: '/api/x402/orderbook',
     },
@@ -648,11 +648,10 @@ function APIProductsSection() {
             <span className="text-sm text-[#22c55e]">x402 Protocol</span>
           </div>
           <h2 className="text-4xl sm:text-5xl font-medium tracking-tight mb-4">
-            Liquidity Data <span className="text-[#22c55e]">API</span>
+            Depth <span className="text-[#22c55e]">API</span>
           </h2>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Pay-per-request APIs powered by x402. Built for AI agents.
-            No subscriptions, no API keys.
+            Pay per request. No keys. Built for AI.
           </p>
         </div>
 
@@ -706,7 +705,7 @@ function APIProductsSection() {
             </div>
             <div>
               <h4 className="font-medium mb-1">No API Keys</h4>
-              <p className="text-sm text-gray-500">Your payment is your access token.</p>
+              <p className="text-sm text-gray-500">Payment is access.</p>
             </div>
           </div>
           <div className="flex items-start gap-4 p-5 rounded-xl bg-[#0a0a0a] border border-[#1a1a1a]">
@@ -715,7 +714,7 @@ function APIProductsSection() {
             </div>
             <div>
               <h4 className="font-medium mb-1">AI-Ready</h4>
-              <p className="text-sm text-gray-500">Built for autonomous agent payments.</p>
+              <p className="text-sm text-gray-500">Native support for AI agents.</p>
             </div>
           </div>
         </div>
