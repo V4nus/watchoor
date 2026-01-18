@@ -12,7 +12,7 @@ const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 // API 定价和 Bazaar 扩展配置 (以 USDC 最小单位，6位小数)
 const PRICING = {
   '/api/x402/orderbook': {
-    amount: '1000', // $0.001 = 1000 units (6 decimals)
+    amount: '10000', // $0.01 = 10000 units (6 decimals)
     description: 'Order Book API - Real-time bid/ask liquidity depth data for DEX pools',
     bazaar: {
       discoverable: true,
@@ -57,7 +57,7 @@ const PRICING = {
     },
   },
   '/api/x402/liquidity-depth': {
-    amount: '2000', // $0.002 = 2000 units (6 decimals)
+    amount: '20000', // $0.02 = 20000 units (6 decimals)
     description: 'Liquidity Depth API - Cumulative liquidity curves with price impact analysis',
     bazaar: {
       discoverable: true,

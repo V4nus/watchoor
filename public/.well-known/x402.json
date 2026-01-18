@@ -1,0 +1,85 @@
+{
+  "$schema": "https://x402.org/schemas/x402.json",
+  "version": "1.0",
+  "name": "Watchoor",
+  "description": "DEX Liquidity Depth Analytics - Transform AMM liquidity into real-time order book depth",
+  "homepage": "https://watchoor.vercel.app",
+  "logo": "https://watchoor.vercel.app/logo.svg",
+  "contact": {
+    "twitter": "https://x.com/watchoor",
+    "github": "https://github.com/V4nus/watchoor"
+  },
+  "payTo": "0x0C019f363765FcA8077BAe7327fD937c1a5d71B3",
+  "network": "eip155:8453",
+  "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "resources": [
+    {
+      "path": "/api/x402/orderbook",
+      "method": "GET",
+      "description": "Order Book API - Real-time bid/ask liquidity depth data for DEX pools",
+      "price": {
+        "amount": "10000",
+        "currency": "USDC",
+        "decimals": 6
+      },
+      "category": "defi",
+      "tags": ["orderbook", "liquidity", "dex", "trading"],
+      "parameters": {
+        "chainId": {
+          "type": "string",
+          "required": true,
+          "description": "Chain identifier (e.g., base, ethereum, solana)",
+          "examples": ["base", "ethereum", "solana"]
+        },
+        "poolAddress": {
+          "type": "string",
+          "required": true,
+          "description": "Pool contract address",
+          "examples": ["0x..."]
+        }
+      },
+      "response": {
+        "type": "application/json",
+        "example": {
+          "bids": [{"price": 0.00395, "tokenAmount": 18987341.5, "liquidityUSD": 74997}],
+          "asks": [{"price": 0.00405, "tokenAmount": 2750617.3, "liquidityUSD": 11136}],
+          "stats": {"totalBidLiquidity": 74997, "totalAskLiquidity": 453187, "spread": 0.0001}
+        }
+      }
+    },
+    {
+      "path": "/api/x402/liquidity-depth",
+      "method": "GET",
+      "description": "Liquidity Depth API - Cumulative liquidity curves with price impact analysis",
+      "price": {
+        "amount": "20000",
+        "currency": "USDC",
+        "decimals": 6
+      },
+      "category": "defi",
+      "tags": ["liquidity", "depth", "price-impact", "dex"],
+      "parameters": {
+        "chainId": {
+          "type": "string",
+          "required": true,
+          "description": "Chain identifier (e.g., base, ethereum, solana)",
+          "examples": ["base", "ethereum", "solana"]
+        },
+        "poolAddress": {
+          "type": "string",
+          "required": true,
+          "description": "Pool contract address",
+          "examples": ["0x..."]
+        }
+      },
+      "response": {
+        "type": "application/json",
+        "example": {
+          "bidCurve": [{"price": 0.00395, "cumulativeLiquidityUSD": 74997, "priceImpactPercent": 1.2}],
+          "askCurve": [{"price": 0.00405, "cumulativeLiquidityUSD": 11136, "priceImpactPercent": 1.5}],
+          "stats": {"liquidityAt1PercentBid": 25000, "liquidityAt5PercentBid": 120000}
+        }
+      }
+    }
+  ]
+}
