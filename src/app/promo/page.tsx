@@ -216,10 +216,10 @@ function IntroScene() {
           showText ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
         }`}
       >
-        <h1 className="text-6xl font-bold tracking-wider text-white">
+        <h1 className="text-4xl sm:text-6xl font-bold tracking-wider text-white">
           Watch<span className="text-[#22c55e]">oor</span>
         </h1>
-        <p className="text-center text-gray-500 mt-2 font-mono text-sm">
+        <p className="text-center text-gray-500 mt-2 font-mono text-xs sm:text-sm">
           The All-Seeing Eye of DeFi
         </p>
       </div>
@@ -241,25 +241,25 @@ function ProblemScene() {
   }, []);
 
   return (
-    <div className="max-w-4xl mx-auto px-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-8">
       <h2
-        className={`text-4xl font-bold text-center mb-12 transition-all duration-700 ${
+        className={`text-2xl sm:text-4xl font-bold text-center mb-6 sm:mb-12 transition-all duration-700 ${
           step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
         }`}
       >
         AMM pools hide the <span className="text-red-500">real</span> liquidity
       </h2>
 
-      <div className="grid grid-cols-3 gap-8">
+      <div className="grid grid-cols-3 gap-2 sm:gap-8">
         {/* Traditional metrics */}
         <div
-          className={`bg-gray-900/50 border border-gray-800 rounded-xl p-6 transition-all duration-700 ${
+          className={`bg-gray-900/50 border border-gray-800 rounded-xl p-3 sm:p-6 transition-all duration-700 ${
             step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          <div className="text-red-500 text-5xl font-bold font-mono">$10M</div>
-          <div className="text-gray-500 mt-2">TVL shown</div>
-          <div className="text-gray-600 text-sm mt-4">
+          <div className="text-red-500 text-2xl sm:text-5xl font-bold font-mono">$10M</div>
+          <div className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-base">TVL shown</div>
+          <div className="text-gray-600 text-xs sm:text-sm mt-2 sm:mt-4 hidden sm:block">
             Looks liquid...
           </div>
         </div>
@@ -269,24 +269,24 @@ function ProblemScene() {
             step >= 2 ? 'opacity-100' : 'opacity-0'
           }`}
         >
-          <div className="text-4xl text-gray-600">≠</div>
+          <div className="text-2xl sm:text-4xl text-gray-600">≠</div>
         </div>
 
         <div
-          className={`bg-gray-900/50 border border-gray-800 rounded-xl p-6 transition-all duration-700 delay-200 ${
+          className={`bg-gray-900/50 border border-gray-800 rounded-xl p-3 sm:p-6 transition-all duration-700 delay-200 ${
             step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          <div className="text-[#22c55e] text-5xl font-bold font-mono">$50K</div>
-          <div className="text-gray-500 mt-2">Actual depth at ±2%</div>
-          <div className="text-gray-600 text-sm mt-4">
+          <div className="text-[#22c55e] text-2xl sm:text-5xl font-bold font-mono">$50K</div>
+          <div className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-base">Actual depth</div>
+          <div className="text-gray-600 text-xs sm:text-sm mt-2 sm:mt-4 hidden sm:block">
             Reality: 0.5% of TVL
           </div>
         </div>
       </div>
 
       <p
-        className={`text-center text-xl text-gray-400 mt-12 transition-all duration-700 ${
+        className={`text-center text-base sm:text-xl text-gray-400 mt-6 sm:mt-12 transition-all duration-700 ${
           step >= 3 ? 'opacity-100' : 'opacity-0'
         }`}
       >
@@ -310,19 +310,18 @@ function SolutionScene() {
   }, []);
 
   return (
-    <div className="max-w-5xl mx-auto px-8">
-      <div className="flex items-center justify-center gap-12">
+    <div className="max-w-5xl mx-auto px-4 sm:px-8">
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
         {/* AMM Pool */}
         <div
           className={`text-center transition-all duration-700 ${
             step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'
           }`}
         >
-          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 flex items-center justify-center">
-            <span className="text-4xl">🌊</span>
+          <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 flex items-center justify-center">
+            <span className="text-2xl sm:text-4xl">🌊</span>
           </div>
-          <p className="mt-4 text-gray-400">AMM Liquidity</p>
-          <p className="text-sm text-gray-600">Uniswap V2/V3/V4</p>
+          <p className="mt-2 sm:mt-4 text-gray-400 text-sm sm:text-base">AMM</p>
         </div>
 
         {/* Arrow with Watchoor */}
@@ -331,7 +330,7 @@ function SolutionScene() {
             step >= 2 ? 'opacity-100 scale-100' : 'opacity-0 scale-75'
           }`}
         >
-          <svg width="120" height="40" viewBox="0 0 120 40">
+          <svg width="80" height="30" viewBox="0 0 120 40" className="sm:w-[120px] sm:h-[40px] rotate-90 sm:rotate-0">
             <defs>
               <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#3b82f6" />
@@ -346,8 +345,8 @@ function SolutionScene() {
               className="animate-pulse"
             />
           </svg>
-          <div className="mt-2 px-4 py-1 bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-full">
-            <span className="text-[#22c55e] text-sm font-mono">Watchoor</span>
+          <div className="mt-2 px-3 sm:px-4 py-1 bg-[#22c55e]/10 border border-[#22c55e]/30 rounded-full">
+            <span className="text-[#22c55e] text-xs sm:text-sm font-mono">Watchoor</span>
           </div>
         </div>
 
@@ -357,43 +356,34 @@ function SolutionScene() {
             step >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12'
           }`}
         >
-          <div className="w-40 h-32 bg-gray-900/80 border border-[#22c55e]/30 rounded-lg p-2 font-mono text-xs">
+          <div className="w-32 h-24 sm:w-40 sm:h-32 bg-gray-900/80 border border-[#22c55e]/30 rounded-lg p-2 font-mono text-[10px] sm:text-xs">
             <div className="text-gray-500 text-center mb-1">Order Book</div>
             <div className="space-y-0.5">
               <div className="flex justify-between text-red-400">
-                <span>0.00412</span>
-                <span>12,450</span>
+                <span>39.12</span>
+                <span>1,245</span>
               </div>
               <div className="flex justify-between text-red-400/70">
-                <span>0.00408</span>
-                <span>8,230</span>
+                <span>38.98</span>
+                <span>823</span>
               </div>
-              <div className="flex justify-between text-red-400/50">
-                <span>0.00405</span>
-                <span>5,100</span>
-              </div>
-              <div className="h-px bg-gray-700 my-1" />
-              <div className="flex justify-between text-[#22c55e]/50">
-                <span>0.00395</span>
-                <span>6,800</span>
-              </div>
+              <div className="h-px bg-gray-700 my-0.5" />
               <div className="flex justify-between text-[#22c55e]/70">
-                <span>0.00392</span>
-                <span>15,200</span>
+                <span>38.42</span>
+                <span>1,520</span>
               </div>
               <div className="flex justify-between text-[#22c55e]">
-                <span>0.00388</span>
-                <span>28,900</span>
+                <span>38.28</span>
+                <span>2,890</span>
               </div>
             </div>
           </div>
-          <p className="mt-4 text-gray-400">Real Order Flow</p>
-          <p className="text-sm text-gray-600">Bid/Ask Depth</p>
+          <p className="mt-2 sm:mt-4 text-gray-400 text-sm sm:text-base">Order Flow</p>
         </div>
       </div>
 
       <p
-        className={`text-center text-2xl mt-12 transition-all duration-700 ${
+        className={`text-center text-lg sm:text-2xl mt-6 sm:mt-12 transition-all duration-700 ${
           step >= 3 ? 'opacity-100' : 'opacity-0'
         }`}
       >
@@ -412,18 +402,18 @@ function DemoScene() {
   useEffect(() => {
     // Generate initial data
     const generateData = () => {
-      const basePrice = 0.004;
+      const basePrice = 38.5;
       const newBids = Array(6)
         .fill(0)
         .map((_, i) => ({
-          price: basePrice - (i + 1) * 0.00005 + Math.random() * 0.00002,
-          size: Math.floor(5000 + Math.random() * 25000),
+          price: basePrice - (i + 1) * 0.15 + Math.random() * 0.05,
+          size: Math.floor(500 + Math.random() * 2500),
         }));
       const newAsks = Array(6)
         .fill(0)
         .map((_, i) => ({
-          price: basePrice + (i + 1) * 0.00005 + Math.random() * 0.00002,
-          size: Math.floor(3000 + Math.random() * 15000),
+          price: basePrice + (i + 1) * 0.15 + Math.random() * 0.05,
+          size: Math.floor(300 + Math.random() * 1500),
         }));
       setBids(newBids);
       setAsks(newAsks);
@@ -437,28 +427,28 @@ function DemoScene() {
   const maxSize = Math.max(...bids.map((b) => b.size), ...asks.map((a) => a.size));
 
   return (
-    <div className="max-w-3xl mx-auto px-8">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900/50 border border-gray-800 rounded-lg">
+    <div className="max-w-3xl mx-auto px-4 sm:px-8">
+      <div className="text-center mb-4 sm:mb-8">
+        <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-900/50 border border-gray-800 rounded-lg">
           <div className="w-2 h-2 rounded-full bg-[#22c55e] animate-pulse" />
-          <span className="text-gray-400 font-mono text-sm">PEPE/WETH · Base</span>
+          <span className="text-gray-400 font-mono text-xs sm:text-sm">TRUMP/SOL · Solana</span>
         </div>
       </div>
 
-      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-6">
-        <div className="grid grid-cols-2 gap-8">
+      <div className="bg-gray-900/80 border border-gray-800 rounded-xl sm:rounded-2xl p-3 sm:p-6">
+        <div className="grid grid-cols-2 gap-4 sm:gap-8">
           {/* Bids */}
           <div>
-            <div className="text-[#22c55e] text-sm font-mono mb-4">BIDS</div>
-            <div className="space-y-2">
+            <div className="text-[#22c55e] text-xs sm:text-sm font-mono mb-2 sm:mb-4">BIDS</div>
+            <div className="space-y-1 sm:space-y-2">
               {bids.map((bid, i) => (
                 <div key={i} className="relative">
                   <div
                     className="absolute inset-y-0 right-0 bg-[#22c55e]/20 rounded transition-all duration-300"
                     style={{ width: `${(bid.size / maxSize) * 100}%` }}
                   />
-                  <div className="relative flex justify-between px-3 py-1.5 font-mono text-sm">
-                    <span className="text-[#22c55e]">{bid.price.toFixed(5)}</span>
+                  <div className="relative flex justify-between px-2 sm:px-3 py-1 sm:py-1.5 font-mono text-xs sm:text-sm">
+                    <span className="text-[#22c55e]">{bid.price.toFixed(2)}</span>
                     <span className="text-gray-400">{bid.size.toLocaleString()}</span>
                   </div>
                 </div>
@@ -468,17 +458,17 @@ function DemoScene() {
 
           {/* Asks */}
           <div>
-            <div className="text-red-500 text-sm font-mono mb-4">ASKS</div>
-            <div className="space-y-2">
+            <div className="text-red-500 text-xs sm:text-sm font-mono mb-2 sm:mb-4">ASKS</div>
+            <div className="space-y-1 sm:space-y-2">
               {asks.map((ask, i) => (
                 <div key={i} className="relative">
                   <div
                     className="absolute inset-y-0 left-0 bg-red-500/20 rounded transition-all duration-300"
                     style={{ width: `${(ask.size / maxSize) * 100}%` }}
                   />
-                  <div className="relative flex justify-between px-3 py-1.5 font-mono text-sm">
+                  <div className="relative flex justify-between px-2 sm:px-3 py-1 sm:py-1.5 font-mono text-xs sm:text-sm">
                     <span className="text-gray-400">{ask.size.toLocaleString()}</span>
-                    <span className="text-red-500">{ask.price.toFixed(5)}</span>
+                    <span className="text-red-500">{ask.price.toFixed(2)}</span>
                   </div>
                 </div>
               ))}
@@ -487,18 +477,18 @@ function DemoScene() {
         </div>
 
         {/* Stats */}
-        <div className="mt-6 pt-6 border-t border-gray-800 grid grid-cols-3 gap-4 text-center">
+        <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-800 grid grid-cols-3 gap-2 sm:gap-4 text-center">
           <div>
-            <div className="text-[#22c55e] text-xl font-mono font-bold">$74,997</div>
-            <div className="text-gray-500 text-xs">Bid Liquidity</div>
+            <div className="text-[#22c55e] text-sm sm:text-xl font-mono font-bold">$74,997</div>
+            <div className="text-gray-500 text-[10px] sm:text-xs">Bid Liquidity</div>
           </div>
           <div>
-            <div className="text-gray-400 text-xl font-mono font-bold">0.025%</div>
-            <div className="text-gray-500 text-xs">Spread</div>
+            <div className="text-gray-400 text-sm sm:text-xl font-mono font-bold">0.025%</div>
+            <div className="text-gray-500 text-[10px] sm:text-xs">Spread</div>
           </div>
           <div>
-            <div className="text-red-500 text-xl font-mono font-bold">$45,318</div>
-            <div className="text-gray-500 text-xs">Ask Liquidity</div>
+            <div className="text-red-500 text-sm sm:text-xl font-mono font-bold">$45,318</div>
+            <div className="text-gray-500 text-[10px] sm:text-xs">Ask Liquidity</div>
           </div>
         </div>
       </div>
@@ -528,24 +518,24 @@ function FeaturesScene() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto px-8">
-      <h2 className="text-3xl font-bold text-center mb-12">
+    <div className="max-w-4xl mx-auto px-4 sm:px-8">
+      <h2 className="text-xl sm:text-3xl font-bold text-center mb-6 sm:mb-12">
         Built for <span className="text-[#22c55e]">serious traders</span>
       </h2>
 
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
         {features.map((feature, i) => (
           <div
             key={i}
-            className={`bg-gray-900/50 border border-gray-800 rounded-xl p-6 text-center transition-all duration-500 ${
+            className={`bg-gray-900/50 border border-gray-800 rounded-xl p-4 sm:p-6 text-center transition-all duration-500 ${
               visibleFeatures > i
                 ? 'opacity-100 translate-y-0'
                 : 'opacity-0 translate-y-8'
             }`}
           >
-            <div className="text-4xl mb-4">{feature.icon}</div>
-            <div className="text-white font-medium">{feature.title}</div>
-            <div className="text-gray-500 text-sm mt-1">{feature.desc}</div>
+            <div className="text-2xl sm:text-4xl mb-2 sm:mb-4">{feature.icon}</div>
+            <div className="text-white font-medium text-sm sm:text-base">{feature.title}</div>
+            <div className="text-gray-500 text-xs sm:text-sm mt-1">{feature.desc}</div>
           </div>
         ))}
       </div>
@@ -563,16 +553,16 @@ function CTAScene() {
 
   return (
     <div
-      className={`text-center transition-all duration-1000 ${
+      className={`text-center px-4 transition-all duration-1000 ${
         show ? 'opacity-100 scale-100' : 'opacity-0 scale-90'
       }`}
     >
       {/* Logo */}
       <svg
-        width="80"
-        height="80"
+        width="60"
+        height="60"
         viewBox="0 0 48 48"
-        className="mx-auto mb-6 drop-shadow-[0_0_20px_rgba(34,197,94,0.5)]"
+        className="mx-auto mb-4 sm:mb-6 sm:w-[80px] sm:h-[80px] drop-shadow-[0_0_20px_rgba(34,197,94,0.5)]"
       >
         <path
           d="M24 12C14 12 6 24 6 24C6 24 14 36 24 36C34 36 42 24 42 24C42 24 34 12 24 12Z"
@@ -584,24 +574,24 @@ function CTAScene() {
         <circle cx="24" cy="24" r="4" fill="#22c55e" />
       </svg>
 
-      <h2 className="text-5xl font-bold mb-4">
+      <h2 className="text-3xl sm:text-5xl font-bold mb-3 sm:mb-4">
         See what others <span className="text-[#22c55e]">can&apos;t</span>
       </h2>
 
-      <p className="text-xl text-gray-400 mb-8">
+      <p className="text-base sm:text-xl text-gray-400 mb-6 sm:mb-8">
         watchoor.vercel.app
       </p>
 
-      <div className="flex items-center justify-center gap-4">
-        <div className="px-6 py-3 bg-[#22c55e] text-black font-bold rounded-full">
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+        <div className="px-5 sm:px-6 py-2.5 sm:py-3 bg-[#22c55e] text-black font-bold rounded-full text-sm sm:text-base">
           Try Now - Free
         </div>
-        <div className="px-6 py-3 border border-[#22c55e]/30 text-[#22c55e] rounded-full font-mono text-sm">
+        <div className="px-5 sm:px-6 py-2.5 sm:py-3 border border-[#22c55e]/30 text-[#22c55e] rounded-full font-mono text-xs sm:text-sm">
           API: $0.01/req
         </div>
       </div>
 
-      <div className="mt-8 text-gray-600 text-sm">
+      <div className="mt-6 sm:mt-8 text-gray-600 text-xs sm:text-sm">
         @watchoor · Powered by x402
       </div>
     </div>
