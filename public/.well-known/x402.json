@@ -12,6 +12,14 @@
   "payTo": "0x0C019f363765FcA8077BAe7327fD937c1a5d71B3",
   "network": "eip155:8453",
   "asset": "eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "facilitators": [
+    {
+      "name": "PayAI",
+      "url": "https://facilitator.payai.network",
+      "networks": ["eip155:8453"],
+      "documentation": "https://docs.payai.network/x402/introduction"
+    }
+  ],
   "resources": [
     {
       "path": "/api/x402/orderbook",

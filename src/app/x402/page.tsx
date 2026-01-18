@@ -197,7 +197,7 @@ export default function X402Page() {
         <section className="mb-20">
           <h2 className="text-2xl font-bold mb-8">Payment Details</h2>
           <div className="bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-8">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               <div>
                 <div className="text-sm text-gray-500 mb-1">Network</div>
                 <div className="flex items-center gap-2">
@@ -222,6 +222,32 @@ export default function X402Page() {
                 <div className="text-sm text-gray-500 mb-1">Protocol</div>
                 <span className="font-medium">x402 v2</span>
               </div>
+            </div>
+
+            {/* Facilitator */}
+            <div className="pt-6 border-t border-[#1a1a1a]">
+              <div className="text-sm text-gray-500 mb-3">Supported Facilitator</div>
+              <a
+                href="https://payai.network"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-3 px-4 py-3 rounded-xl bg-[#111] border border-[#222] hover:border-[#22c55e]/30 transition-colors group"
+              >
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm">
+                  P
+                </div>
+                <div>
+                  <div className="font-medium group-hover:text-[#22c55e] transition-colors">PayAI Network</div>
+                  <div className="text-xs text-gray-500">x402 Facilitator · Base & Solana</div>
+                </div>
+                <ExternalLink size={14} className="text-gray-500 group-hover:text-[#22c55e] transition-colors ml-2" />
+              </a>
+              <p className="text-xs text-gray-500 mt-3">
+                PayAI handles payment verification and settlement for AI agents.{' '}
+                <a href="https://docs.payai.network/x402/introduction" target="_blank" rel="noopener noreferrer" className="text-[#22c55e] hover:underline">
+                  View docs →
+                </a>
+              </p>
             </div>
           </div>
         </section>
