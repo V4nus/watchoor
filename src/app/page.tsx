@@ -379,7 +379,7 @@ export default function Home() {
                   />
                   <circle cx="24" cy="24" r="4" fill="#22c55e" />
                 </svg>
-                <span className="text-sm text-gray-500">Watchoor · DeFi Liquidity Analytics</span>
+                <span className="text-sm text-gray-500">Watchoor · Liquidity Intelligence</span>
               </div>
               <div className="flex items-center gap-8 text-sm text-gray-500">
                 <a

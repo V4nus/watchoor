@@ -215,7 +215,7 @@ function IntroScene() {
           Watch<span className="text-[#22c55e]">oor</span>
         </h1>
         <p className="text-center text-gray-500 mt-2 font-mono text-xs sm:text-sm">
-          The All-Seeing Eye of DeFi
+          AMM → Order Book
         </p>
       </div>
     </div>
@@ -380,8 +380,8 @@ function SolutionScene() {
           step >= 3 ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <span className="text-white">Decode AMM into</span>{' '}
-        <span className="text-[#22c55e]">tradeable intelligence</span>
+        <span className="text-white">AMM to</span>{' '}
+        <span className="text-[#22c55e]">Order Book</span>
       </p>
     </div>
   );
