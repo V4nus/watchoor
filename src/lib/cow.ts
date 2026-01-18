@@ -248,7 +248,7 @@ export async function buildMarketOrderAppData(slippageBps: number = 50): Promise
 
     // Generate appData document with market orderClass
     const appDataDoc = await metadataApi.generateAppDataDoc({
-      appCode: '0xArgus',
+      appCode: 'Watchoor',
       metadata: {
         orderClass: { orderClass: 'market' },
         quote: { slippageBips: slippageBps }

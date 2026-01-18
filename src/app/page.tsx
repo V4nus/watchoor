@@ -145,7 +145,7 @@ export default function Home() {
                 <circle cx="24" cy="24" r="8" stroke="#22c55e" strokeWidth="1.5" fill="none" />
                 <circle cx="24" cy="24" r="4" fill="#22c55e" />
               </svg>
-              <span className="text-lg font-medium tracking-wide">0xArgus</span>
+              <span className="text-lg font-medium tracking-wide">Watchoor</span>
             </Link>
 
             <div className="flex items-center gap-6">
@@ -162,7 +162,7 @@ export default function Home() {
               </nav>
               <div className="flex items-center gap-4">
                 <a
-                  href="https://github.com/anthropics/claude-code"
+                  href="https://github.com/V4nus/watchoor"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-500 hover:text-white transition-colors"
@@ -170,7 +170,7 @@ export default function Home() {
                   <Github size={18} />
                 </a>
                 <a
-                  href="https://x.com/0xArgus_"
+                  href="https://x.com/watchoor"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-500 hover:text-white transition-colors"
@@ -375,11 +375,11 @@ export default function Home() {
                   />
                   <circle cx="24" cy="24" r="4" fill="#22c55e" />
                 </svg>
-                <span className="text-sm text-gray-500">0xArgus · DeFi Liquidity Analytics</span>
+                <span className="text-sm text-gray-500">Watchoor · DeFi Liquidity Analytics</span>
               </div>
               <div className="flex items-center gap-8 text-sm text-gray-500">
                 <a
-                  href="https://github.com/anthropics/claude-code"
+                  href="https://github.com/V4nus/watchoor"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -387,7 +387,7 @@ export default function Home() {
                   GitHub
                 </a>
                 <a
-                  href="https://x.com/0xArgus_"
+                  href="https://x.com/watchoor"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-white transition-colors"
@@ -633,7 +633,7 @@ function APIProductsSection() {
       price: '$0.001',
       endpoint: '/api/x402/orderbook',
       features: ['Real-time data', 'Multi-chain support', 'V2/V3/V4 pools'],
-      example: `curl "https://0x-argus.vercel.app/api/x402/orderbook?chainId=base&poolAddress=0x..."`,
+      example: `curl "https://watchoor.vercel.app/api/x402/orderbook?chainId=base&poolAddress=0x..."`,
       responsePreview: {
         bids: [{ price: 0.00395, liquidityUSD: 74997 }],
         asks: [{ price: 0.00405, liquidityUSD: 11136 }],
@@ -647,7 +647,7 @@ function APIProductsSection() {
       price: '$0.002',
       endpoint: '/api/x402/liquidity-depth',
       features: ['Cumulative curves', 'Price impact %', 'Depth metrics'],
-      example: `curl "https://0x-argus.vercel.app/api/x402/liquidity-depth?chainId=base&poolAddress=0x..."`,
+      example: `curl "https://watchoor.vercel.app/api/x402/liquidity-depth?chainId=base&poolAddress=0x..."`,
       responsePreview: {
         bidCurve: [{ price: 0.00395, cumulativeLiquidityUSD: 74997, priceImpactPercent: 1.2 }],
         askCurve: [{ price: 0.00405, cumulativeLiquidityUSD: 11136, priceImpactPercent: 1.5 }],

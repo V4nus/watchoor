@@ -35,10 +35,10 @@ export default function WikiPage() {
               <span className="text-sm">Home</span>
             </Link>
             <span className="text-gray-600">|</span>
-            <h1 className="text-lg font-medium">0xArgus Technical Documentation</h1>
+            <h1 className="text-lg font-medium">Watchoor Technical Documentation</h1>
           </div>
           <a
-            href="https://github.com/V4nus/0xArgus"
+            href="https://github.com/V4nus/watchoor"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
@@ -56,7 +56,7 @@ export default function WikiPage() {
             Project Overview
           </h2>
           <p className="text-gray-300 mb-6 text-lg">
-            <span className="text-[#22c55e] font-semibold">0xArgus</span> is an AMM liquidity analysis platform that transforms liquidity pools into order book depth displays, revealing hidden support and resistance levels.
+            <span className="text-[#22c55e] font-semibold">Watchoor</span> is an AMM liquidity analysis platform that transforms liquidity pools into order book depth displays, revealing hidden support and resistance levels.
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
@@ -264,7 +264,7 @@ export default function WikiPage() {
 
         {/* Footer */}
         <footer className="border-t border-[#1a1a1a] mt-12 pt-6">
-          <p className="text-center text-gray-500 text-sm">© 2024 0xArgus. All rights reserved.</p>
+          <p className="text-center text-gray-500 text-sm">© 2024 Watchoor. All rights reserved.</p>
         </footer>
       </main>
     </div>

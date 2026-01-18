@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-0xArgus is a DEX liquidity depth analyzer built with Next.js 16. It analyzes AMM (Automated Market Maker) liquidity pools to show real liquidity depth at various price levels - revealing how much actual trading capacity exists beyond surface-level metrics like market cap.
+Watchoor is a DEX liquidity depth analyzer built with Next.js 16. It analyzes AMM (Automated Market Maker) liquidity pools to show real liquidity depth at various price levels - revealing how much actual trading capacity exists beyond surface-level metrics like market cap.
 
 **Key Features**:
 - Unified V2/V3/V4 liquidity depth analysis with auto-detection

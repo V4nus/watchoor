@@ -178,7 +178,7 @@ export async function middleware(request: NextRequest) {
     if (!hasValidPayment(request)) {
       // 构建基础 URL
       const protocol = request.headers.get('x-forwarded-proto') || 'https';
-      const host = request.headers.get('host') || '0x-argus.vercel.app';
+      const host = request.headers.get('host') || 'watchoor.vercel.app';
       const baseUrl = `${protocol}://${host}`;
 
       // 返回 402 Payment Required

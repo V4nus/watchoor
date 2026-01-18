@@ -1,5 +1,5 @@
 <svg width="200" height="48" viewBox="0 0 200 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- Eye Icon (Argus - The All-Seeing) -->
+  <!-- Eye Icon (Watchoor - The All-Seeing) -->
   <g>
     <!-- Outer eye shape -->
     <path d="M24 12C14 12 6 24 6 24C6 24 14 36 24 36C34 36 42 24 42 24C42 24 34 12 24 12Z" stroke="#3fb950" stroke-width="2.5" fill="none"/>
@@ -11,7 +11,6 @@
     <circle cx="26" cy="22" r="1.5" fill="#0d1117"/>
   </g>
 
-  <!-- 0xArgus Text -->
-  <text x="52" y="32" font-family="monospace, 'Courier New'" font-size="24" font-weight="bold" fill="#3fb950">0x</text>
-  <text x="82" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="bold" fill="#e6edf3">Argus</text>
+  <!-- Watchoor Text -->
+  <text x="52" y="32" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="bold" fill="#e6edf3">Watchoor</text>
 </svg>

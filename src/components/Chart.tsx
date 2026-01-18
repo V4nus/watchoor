@@ -217,7 +217,7 @@ export default function Chart({
       handleScroll: { vertTouchDrag: true, horzTouchDrag: true, mouseWheel: true, pressedMouseMove: true },
       watermark: {
         visible: true,
-        text: '0xArgus',
+        text: 'Watchoor',
         fontSize: 100,
         fontFamily: 'system-ui, -apple-system, sans-serif',
         fontStyle: 'bold',

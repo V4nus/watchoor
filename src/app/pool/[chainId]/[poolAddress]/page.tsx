@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: PoolPageProps) {
   }
 
   return {
-    title: `${pool.baseToken.symbol}/${pool.quoteToken.symbol} - 0xArgus`,
+    title: `${pool.baseToken.symbol}/${pool.quoteToken.symbol} - Watchoor`,
     description: `View ${pool.baseToken.symbol}/${pool.quoteToken.symbol} order flow, liquidity depth and trading data on ${pool.dex}`,
   };
 }
