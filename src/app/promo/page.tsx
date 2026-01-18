@@ -307,15 +307,13 @@ function SolutionScene() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-8">
       <div className="flex flex-col sm:flex-row items-center justify-center gap-6 sm:gap-12">
-        {/* AMM Pool */}
+        {/* AMM Pool - Liquidity Range Animation */}
         <div
           className={`text-center transition-all duration-700 ${
             step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'
           }`}
         >
-          <div className="w-20 h-20 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-blue-500/20 to-purple-500/20 border border-blue-500/30 flex items-center justify-center">
-            <span className="text-2xl sm:text-4xl">🌊</span>
-          </div>
+          <AMMAnimation />
           <p className="mt-2 sm:mt-4 text-gray-400 text-sm sm:text-base">AMM</p>
         </div>
 
@@ -588,6 +586,48 @@ function CTAScene() {
 
       <div className="mt-6 sm:mt-8 text-gray-600 text-xs sm:text-sm">
         @watchoor · Powered by x402
+      </div>
+    </div>
+  );
+}
+
+// AMM Liquidity Range Animation Component
+function AMMAnimation() {
+  const [bars, setBars] = useState([35, 55, 85, 100, 90, 70, 45, 30, 20, 15]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBars(prev => prev.map((_, i) => {
+        const variation = Math.sin(Date.now() / 500 + i * 0.5) * 15;
+        const base = [35, 55, 85, 100, 90, 70, 45, 30, 20, 15][i];
+        return Math.max(10, Math.min(100, base + variation));
+      }));
+    }, 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="w-28 h-24 sm:w-40 sm:h-32 bg-gray-900/80 border border-blue-500/30 rounded-lg p-2 sm:p-3 relative overflow-hidden">
+      {/* Liquidity bars */}
+      <div className="flex items-end justify-center gap-[2px] sm:gap-1 h-full">
+        {bars.map((height, i) => (
+          <div
+            key={i}
+            className="w-2 sm:w-3 rounded-t transition-all duration-100"
+            style={{
+              height: `${height}%`,
+              background: i < 5
+                ? `rgba(59, 130, 246, ${0.4 + (i * 0.12)})`
+                : `rgba(168, 85, 247, ${0.9 - ((i - 5) * 0.12)})`,
+            }}
+          />
+        ))}
+      </div>
+      {/* Current price indicator */}
+      <div className="absolute left-1/2 top-2 bottom-2 w-px bg-white/20" />
+      {/* Price label */}
+      <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-gray-900/80 to-transparent flex items-end justify-center">
+        <span className="text-[8px] sm:text-[10px] text-gray-500 font-mono">price range</span>
       </div>
     </div>
   );
