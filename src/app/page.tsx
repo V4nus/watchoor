@@ -159,6 +159,10 @@ export default function Home() {
                   <BookOpen size={14} />
                   Wiki
                 </Link>
+                <Link href="/x402" className="hover:text-white transition-colors flex items-center gap-1.5">
+                  <Code2 size={14} />
+                  x402
+                </Link>
               </nav>
               <div className="flex items-center gap-4">
                 <a
