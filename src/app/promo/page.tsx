@@ -5,40 +5,35 @@ import { useEffect, useRef, useState } from 'react';
 // Animation scenes
 type Scene = 'intro' | 'problem' | 'solution' | 'demo' | 'features' | 'cta';
 
+// Scene timing (in ms) - moved outside component to avoid re-creation
+const SCENE_DURATIONS: Record<Scene, number> = {
+  intro: 3000,
+  problem: 4000,
+  solution: 4000,
+  demo: 5000,
+  features: 4000,
+  cta: 3000,
+};
+
+const SCENES: Scene[] = ['intro', 'problem', 'solution', 'demo', 'features', 'cta'];
+
 export default function PromoPage() {
   const [currentScene, setCurrentScene] = useState<Scene>('intro');
   const [isPlaying, setIsPlaying] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Scene timing (in ms)
-  const sceneDurations: Record<Scene, number> = {
-    intro: 3000,
-    problem: 4000,
-    solution: 4000,
-    demo: 5000,
-    features: 4000,
-    cta: 3000,
-  };
-
-  const scenes: Scene[] = ['intro', 'problem', 'solution', 'demo', 'features', 'cta'];
-
   // Auto-advance scenes
   useEffect(() => {
     if (!isPlaying) return;
 
-    const currentIndex = scenes.indexOf(currentScene);
-    if (currentIndex < scenes.length - 1) {
-      const timer = setTimeout(() => {
-        setCurrentScene(scenes[currentIndex + 1]);
-      }, sceneDurations[currentScene]);
-      return () => clearTimeout(timer);
-    } else {
-      // Loop back to intro
-      const timer = setTimeout(() => {
-        setCurrentScene('intro');
-      }, sceneDurations[currentScene]);
-      return () => clearTimeout(timer);
-    }
+    const currentIndex = SCENES.indexOf(currentScene);
+    const nextScene = currentIndex < SCENES.length - 1 ? SCENES[currentIndex + 1] : SCENES[0];
+
+    const timer = setTimeout(() => {
+      setCurrentScene(nextScene);
+    }, SCENE_DURATIONS[currentScene]);
+
+    return () => clearTimeout(timer);
   }, [currentScene, isPlaying]);
 
   // Matrix rain effect for background
@@ -99,7 +94,7 @@ export default function PromoPage() {
         <div
           className="h-full bg-[#22c55e] transition-all duration-300"
           style={{
-            width: `${((scenes.indexOf(currentScene) + 1) / scenes.length) * 100}%`,
+            width: `${((SCENES.indexOf(currentScene) + 1) / SCENES.length) * 100}%`,
           }}
         />
       </div>
@@ -113,7 +108,7 @@ export default function PromoPage() {
           {isPlaying ? 'Pause' : 'Play'}
         </button>
         <div className="flex gap-2">
-          {scenes.map((scene, i) => (
+          {SCENES.map((scene, i) => (
             <button
               key={scene}
               onClick={() => setCurrentScene(scene)}
@@ -127,7 +122,7 @@ export default function PromoPage() {
 
       {/* Scene indicator */}
       <div className="absolute top-6 right-6 text-gray-500 text-sm font-mono">
-        {scenes.indexOf(currentScene) + 1}/{scenes.length}
+        {SCENES.indexOf(currentScene) + 1}/{SCENES.length}
       </div>
     </div>
   );
@@ -520,7 +515,7 @@ function FeaturesScene() {
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-8">
       <h2 className="text-xl sm:text-3xl font-bold text-center mb-6 sm:mb-12">
-        Built for <span className="text-[#22c55e]">serious traders</span>
+        Built for <span className="text-[#22c55e]">AI Agents</span>
       </h2>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
