@@ -617,42 +617,20 @@ function OrderFlowSection() {
 
 // API Products Section
 function APIProductsSection() {
-  const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
-
-  const copyToClipboard = (text: string, endpoint: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedEndpoint(endpoint);
-    setTimeout(() => setCopiedEndpoint(null), 2000);
-  };
-
   const apis = [
     {
       id: 'orderbook',
       name: 'Order Book API',
-      description: 'Real-time bid/ask liquidity depth data for any supported pool. Get precise price levels and token amounts.',
+      description: 'Real-time bid/ask liquidity depth data for any supported pool.',
       price: '$0.01',
       endpoint: '/api/x402/orderbook',
-      features: ['Real-time data', 'Multi-chain support', 'V2/V3/V4 pools'],
-      example: `curl "https://watchoor.vercel.app/api/x402/orderbook?chainId=base&poolAddress=0x..."`,
-      responsePreview: {
-        bids: [{ price: 0.00395, liquidityUSD: 74997 }],
-        asks: [{ price: 0.00405, liquidityUSD: 11136 }],
-        stats: { totalBidLiquidity: 74997, totalAskLiquidity: 453187 }
-      }
     },
     {
       id: 'liquidity-depth',
       name: 'Liquidity Depth API',
-      description: 'Cumulative liquidity curves with price impact analysis. Essential for optimal trade execution.',
+      description: 'Cumulative liquidity curves with price impact analysis.',
       price: '$0.02',
       endpoint: '/api/x402/liquidity-depth',
-      features: ['Cumulative curves', 'Price impact %', 'Depth metrics'],
-      example: `curl "https://watchoor.vercel.app/api/x402/liquidity-depth?chainId=base&poolAddress=0x..."`,
-      responsePreview: {
-        bidCurve: [{ price: 0.00395, cumulativeLiquidityUSD: 74997, priceImpactPercent: 1.2 }],
-        askCurve: [{ price: 0.00405, cumulativeLiquidityUSD: 11136, priceImpactPercent: 1.5 }],
-        stats: { liquidityAt1PercentBid: 25000, liquidityAt5PercentBid: 120000 }
-      }
     }
   ];
 
@@ -669,16 +647,17 @@ function APIProductsSection() {
             Liquidity Data <span className="text-[#22c55e]">API</span>
           </h2>
           <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-            Pay-per-request APIs powered by x402. No subscriptions, no API keys.
-            Just send a payment header and get data.
+            Pay-per-request APIs powered by x402. Built for AI agents.
+            No subscriptions, no API keys.
           </p>
         </div>
 
         {/* API Cards */}
         <div className="grid lg:grid-cols-2 gap-6 mb-12">
           {apis.map((api) => (
-            <div
+            <Link
               key={api.id}
+              href="/x402"
               className="group relative bg-[#0a0a0a] border border-[#1a1a1a] rounded-2xl p-6 hover:border-[#22c55e]/30 transition-all duration-300"
             >
               {/* Price badge */}
@@ -693,40 +672,16 @@ function APIProductsSection() {
               <h3 className="text-xl font-medium mb-2 pr-24">{api.name}</h3>
               <p className="text-gray-400 text-sm mb-4 leading-relaxed">{api.description}</p>
 
-              {/* Features */}
-              <div className="flex flex-wrap gap-2 mb-5">
-                {api.features.map((feature) => (
-                  <span
-                    key={feature}
-                    className="px-2.5 py-1 rounded-md bg-[#111] text-xs text-gray-400"
-                  >
-                    {feature}
-                  </span>
-                ))}
-              </div>
-
               {/* Endpoint */}
-              <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-lg p-3 mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-500 uppercase tracking-wider">Endpoint</span>
-                  <button
-                    onClick={() => copyToClipboard(api.endpoint, api.id)}
-                    className="text-xs text-gray-500 hover:text-[#22c55e] transition-colors"
-                  >
-                    {copiedEndpoint === api.id ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
+              <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-lg p-3">
                 <code className="text-sm text-[#22c55e] font-mono break-all">{api.endpoint}</code>
               </div>
 
-              {/* Response Preview */}
-              <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-lg p-3">
-                <span className="text-xs text-gray-500 uppercase tracking-wider block mb-2">Response Preview</span>
-                <pre className="text-xs text-gray-400 font-mono overflow-x-auto">
-                  {JSON.stringify(api.responsePreview, null, 2).slice(0, 200)}...
-                </pre>
+              {/* Hover indicator */}
+              <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                <ArrowRight size={20} className="text-[#22c55e]" />
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 
@@ -738,7 +693,7 @@ function APIProductsSection() {
             </div>
             <div>
               <h4 className="font-medium mb-1">Instant Access</h4>
-              <p className="text-sm text-gray-500">No signup required. Pay with USDC on Base and get data immediately.</p>
+              <p className="text-sm text-gray-500">No signup required. Pay with USDC on Base.</p>
             </div>
           </div>
           <div className="flex items-start gap-4 p-5 rounded-xl bg-[#0a0a0a] border border-[#1a1a1a]">
@@ -747,7 +702,7 @@ function APIProductsSection() {
             </div>
             <div>
               <h4 className="font-medium mb-1">No API Keys</h4>
-              <p className="text-sm text-gray-500">x402 protocol handles auth. Your payment is your access token.</p>
+              <p className="text-sm text-gray-500">Your payment is your access token.</p>
             </div>
           </div>
           <div className="flex items-start gap-4 p-5 rounded-xl bg-[#0a0a0a] border border-[#1a1a1a]">
@@ -755,23 +710,21 @@ function APIProductsSection() {
               <Code2 size={20} className="text-[#22c55e]" />
             </div>
             <div>
-              <h4 className="font-medium mb-1">Simple Integration</h4>
-              <p className="text-sm text-gray-500">Standard REST API. Works with any HTTP client that supports x402.</p>
+              <h4 className="font-medium mb-1">AI-Ready</h4>
+              <p className="text-sm text-gray-500">Built for autonomous agent payments.</p>
             </div>
           </div>
         </div>
 
         {/* CTA */}
         <div className="text-center">
-          <a
-            href="https://www.x402.org/"
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/x402"
             className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#22c55e] hover:bg-[#1ea84b] text-black font-medium transition-colors"
           >
-            Learn about x402
+            View API Documentation
             <ArrowRight size={18} />
-          </a>
+          </Link>
           <p className="text-xs text-gray-500 mt-4">
             Powered by Coinbase x402 Protocol · Payments on Base Network
           </p>

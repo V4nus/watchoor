@@ -285,7 +285,7 @@ function ProblemScene() {
           step >= 3 ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        You need to see the <span className="text-[#22c55e]">order flow</span>, not just the pool.
+        You need to see the <span className="text-[#22c55e]">order book</span>, not just the pool.
       </p>
     </div>
   );
@@ -373,7 +373,7 @@ function SolutionScene() {
               </div>
             </div>
           </div>
-          <p className="mt-2 sm:mt-4 text-gray-400 text-sm sm:text-base">Order Flow</p>
+          <p className="mt-2 sm:mt-4 text-gray-400 text-sm sm:text-base">Order Book</p>
         </div>
       </div>
 
